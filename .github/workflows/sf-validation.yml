@@ -255,56 +255,72 @@ jobs:
             try {
               const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
               deployResult = JSON.parse(deployContent);
-              
-              // Handle both success and error cases
               const isError = deployResult.name === 'FailedValidationError';
               comment += `| Deployment | ${isError ? '❌ Failed' : '✅ Ready'} |\n\n`;
-              
-              // Deployment Details
-              if (deployResult) {
-                comment += '<details><summary><b>🚀 Deployment Validation</b></summary>\n\n';
-                
-                if (isError) {
-                  // Format validation error
-                  comment += '### ❌ Validation Errors\n\n';
-                  
-                  // Extract component errors from message
-                  const errors = deployResult.message
-                    .split('Due To:\n')[1]
-                    .split('\n\n')[0]
-                    .split('\n')
-                    .filter(line => line.trim());
-                    
-                  errors.forEach(error => {
-                    const [component, ...messageParts] = error.split(' - ');
-                    const message = messageParts.join(' - ');
-                    comment += `**${component}**\n`;
-                    comment += `\`\`\`\n${message}\n\`\`\`\n\n`;
-                  });
-                  
-                  // Deployment Info
-                  comment += '### 📋 Deployment Information\n\n';
-                  comment += `- **Deploy ID**: \`${deployResult.data.deployId}\`\n`;
-                  comment += `- **Status**: Failed\n`;
-                  comment += `- **Error Type**: ${deployResult.name}\n`;
-                  
-                  if (deployResult.warnings?.length > 0) {
-                    comment += '\n### ⚠️ Warnings\n\n';
-                    deployResult.warnings.forEach(warning => {
-                      comment += `- ${warning}\n`;
-                    });
-                  }
-                } else {
-                  // Handle successful validation (existing success case code)
-                  // ... your existing success case formatting ...
-                }
-                
-                comment += '</details>\n\n';
-              }
             } catch (e) {
-              console.error('Error parsing deploy report:', e);
               comment += '| Deployment | ❌ Error parsing results |\n\n';
             }
+            
+            // Detailed Results
+            comment += '<details><summary><h3>📝 Detailed Results</h3></summary>\n\n';
+            
+            // ESLint Details
+            if (hasEslintIssues) {
+              comment += '<details><summary><b>🔍 ESLint Issues</b></summary>\n\n';
+              comment += '```\n' + eslintOutput + '\n```\n</details>\n\n';
+            }
+            
+            // PMD Details
+            if (hasPmdIssues) {
+              comment += '<details><summary><b>🔍 PMD Issues</b></summary>\n\n';
+              comment += '```\n' + pmdOutput + '\n```\n</details>\n\n';
+            }
+            
+            // Deployment Details
+            if (deployResult) {
+              comment += '<details><summary><b>🚀 Deployment Validation</b></summary>\n\n';
+              
+              if (deployResult.name === 'FailedValidationError') {
+                // Format validation error
+                comment += '### ❌ Validation Errors\n\n';
+                
+                // Extract component errors from message
+                const errors = deployResult.message
+                  .split('Due To:\n')[1]
+                  .split('\n\n')[0]
+                  .split('\n')
+                  .filter(line => line.trim());
+                  
+                errors.forEach(error => {
+                  const [component, ...messageParts] = error.split(' - ');
+                  const message = messageParts.join(' - ');
+                  comment += `**${component}**\n`;
+                  comment += `\`\`\`\n${message}\n\`\`\`\n\n`;
+                });
+                
+                // Deployment Info
+                comment += '### 📋 Deployment Information\n\n';
+                comment += `- **Deploy ID**: \`${deployResult.data.deployId}\`\n`;
+                comment += `- **Status**: Failed\n`;
+                comment += `- **Error Type**: ${deployResult.name}\n`;
+                
+                if (deployResult.warnings?.length > 0) {
+                  comment += '\n### ⚠️ Warnings\n\n';
+                  deployResult.warnings.forEach(warning => {
+                    comment += `- ${warning}\n`;
+                  });
+                }
+              } else {
+                // Handle successful validation
+                comment += '### ✅ Validation Succeeded\n\n';
+                comment += `- **Deploy ID**: \`${deployResult.result?.id || 'N/A'}\`\n`;
+                comment += `- **Status**: Success\n`;
+              }
+              
+              comment += '</details>\n\n';
+            }
+            
+            comment += '</details>\n\n';
             
             // Final Status
             const allPassed = !hasEslintIssues && !hasPmdIssues && !hasDeployIssues;
