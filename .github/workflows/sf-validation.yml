@@ -133,29 +133,41 @@ jobs:
             ./pmd-bin/bin/pmd check \
               -d "$CHANGED_APEX_FILES" \
               -R pmdRuleset.xml \
-              -f text \
+              -f json \
               --force-language apex \
               2>&1 | node -e '
                 const input = require("fs").readFileSync(0, "utf-8");
-                const lines = input.split("\n");
-                
-                // Filter out warnings and empty lines
-                const violations = lines
-                  .filter(line => line.includes("cls:") || line.includes("trigger:") || line.includes("page:"))
-                  .map(line => {
-                    const [file, lineNum, rule, ...descParts] = line.split(":");
-                    const className = file.split("/").pop();
-                    const description = descParts.join(":").trim();
-                    return { className, lineNum, rule: rule.trim(), description };
+                try {
+                  const result = JSON.parse(input);
+                  
+                  // Collect all violations
+                  const violations = result.files.flatMap(file => {
+                    const fileName = file.filename.split("/").pop();
+                    return file.violations.map(v => ({
+                      file: fileName,
+                      line: v.beginline,
+                      rule: v.rule,
+                      description: v.description,
+                      priority: v.priority
+                    }));
                   });
-                
-                if (violations.length > 0) {
-                  console.log("| Class | Line | Rule | Description |");
-                  console.log("|-------|------|------|-------------|");
-                  violations.forEach(v => {
-                    console.log(`| ${v.className} | ${v.lineNum} | ${v.rule} | ${v.description} |`);
-                  });
-                } else {
+                  
+                  if (violations.length > 0) {
+                    console.log("| Class | Line | Rule | Description |");
+                    console.log("|-------|------|------|-------------|");
+                    violations.forEach(v => {
+                      console.log(`| ${v.file} | ${v.line} | ${v.rule} | ${v.description} |`);
+                    });
+                  } else {
+                    console.log("No PMD issues found");
+                  }
+                  
+                  // Store priorities in a separate file for severity counting
+                  const priorities = violations.map(v => v.priority);
+                  require("fs").writeFileSync("pmd_priorities.json", JSON.stringify(priorities));
+                  
+                } catch (e) {
+                  console.error("Error processing PMD output:", e);
                   console.log("No PMD issues found");
                 }
               ' | tee pmd_report.txt
@@ -164,6 +176,7 @@ jobs:
             fi
           else
             echo "No Apex files to analyze" > pmd_report.txt
+            echo "[]" > pmd_priorities.json
           fi
 
       - name: Install sfdx-git-delta plugin
@@ -237,28 +250,30 @@ jobs:
               const eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
               if (eslintOutput !== 'No JS files to lint' && eslintOutput !== 'No ESLint issues found') {
                 const lines = eslintOutput.split('\n');
-                // Skip header lines and summary
+                // Skip header and footer lines
                 lines.slice(2, -2).forEach(line => {
-                  if (line.includes('error')) eslintCritical++;
-                  if (line.includes('warning')) eslintWarnings++;
+                  const parts = line.split('|').map(p => p.trim());
+                  if (parts.length >= 5) {  // Make sure we have enough columns
+                    // Rule column is parts[4]
+                    if (parts[4].startsWith('error:')) eslintCritical++;
+                    if (parts[4].startsWith('warning:')) eslintWarnings++;
+                  }
                 });
               }
-            } catch (e) {}
+            } catch (e) {
+              console.error('Error parsing ESLint output:', e);
+            }
 
             // Parse PMD results for severity counts
             let pmdCritical = 0;
             let pmdWarnings = 0;
             try {
-              const pmdOutput = fs.readFileSync('pmd_report.txt', 'utf8').trim();
-              if (pmdOutput !== 'No Apex files to analyze' && pmdOutput !== 'No PMD issues found') {
-                const lines = pmdOutput.split('\n');
-                // Skip header lines
-                lines.slice(2).forEach(line => {
-                  if (line.includes('Priority: 1')) pmdCritical++;
-                  if (line.includes('Priority: 3')) pmdWarnings++;
-                });
-              }
-            } catch (e) {}
+              const pmdPriorities = JSON.parse(fs.readFileSync('pmd_priorities.json', 'utf8'));
+              pmdCritical = pmdPriorities.filter(p => p <= 2).length;  // Priority 1-2 are critical
+              pmdWarnings = pmdPriorities.filter(p => p > 2).length;   // Priority 3+ are warnings
+            } catch (e) {
+              console.error('Error parsing PMD priorities:', e);
+            }
 
             // Add severity summary diagram
             const totalCritical = eslintCritical + pmdCritical;
@@ -274,7 +289,7 @@ jobs:
               if (totalWarnings > 0) {
                 comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
               }
-              comment += '    %%{init: {"pie": {"colorScheme": ["#ff0000", "#ffa500"]}} }%%\n';  // Red for Critical, Orange for Warnings
+              comment += '    %%{init: {"pie": {"colorScheme": ["#ff0000", "#ffa500"]}} }%%\n';
               comment += '```\n\n';
               
               // Add detailed breakdown
