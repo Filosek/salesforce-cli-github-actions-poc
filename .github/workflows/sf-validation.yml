@@ -210,17 +210,12 @@ jobs:
           script: |
             const fs = require('fs');
             
-            // Helper function to create status badge
-            const getStatusBadge = (failed) => failed ? 
-              '![Failed](https://img.shields.io/badge/Failed-red?style=flat-square&logo=x)' : 
-              '![Passed](https://img.shields.io/badge/Passed-green?style=flat-square&logo=check)';
-            
             let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
             
             // Quick Summary at the top
             comment += '### 📊 Summary\n\n';
-            comment += '| Check | Status | Details |\n';
-            comment += '|-------|--------|----------|\n';
+            comment += '| Check | Status |\n';
+            comment += '|-------|--------|\n';
             
             // ESLint Summary
             const hasEslintIssues = process.env.ESLINT_FAILED === 'true';
@@ -230,7 +225,7 @@ jobs:
             } catch (e) {
               eslintOutput = 'No JavaScript files checked';
             }
-            comment += `| ESLint | ${getStatusBadge(hasEslintIssues)} | ${hasEslintIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
+            comment += `| ESLint | ${hasEslintIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
             
             // PMD Summary
             const hasPmdIssues = process.env.PMD_FAILED === 'true';
@@ -240,7 +235,7 @@ jobs:
             } catch (e) {
               pmdOutput = 'No Apex files analyzed';
             }
-            comment += `| PMD | ${getStatusBadge(hasPmdIssues)} | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
+            comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
             
             // Deployment Summary
             const hasDeployIssues = process.env.DEPLOY_FAILED === 'true';
@@ -250,7 +245,7 @@ jobs:
             } catch (e) {
               deployOutput = 'No deployment performed';
             }
-            comment += `| Deployment | ${getStatusBadge(hasDeployIssues)} | ${hasDeployIssues ? '❌ Failed' : '✅ Ready'} |\n\n`;
+            comment += `| Deployment | ${hasDeployIssues ? '❌ Failed' : '✅ Ready'} |\n\n`;
             
             // Detailed Results
             if (hasEslintIssues || hasPmdIssues || hasDeployIssues) {
