@@ -210,6 +210,10 @@ jobs:
               echo "DEPLOY_FAILED=true" >> $GITHUB_ENV
               echo "Deployment validation failed"
             }
+          
+          # Debug output
+          echo "Deploy report content:"
+          cat deploy_report.json
 
       - name: Create PR Comment
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -249,10 +253,16 @@ jobs:
             const hasDeployIssues = process.env.DEPLOY_FAILED === 'true';
             let deployResult;
             try {
-              deployResult = JSON.parse(fs.readFileSync('deploy_report.json', 'utf8'));
-              const deployStatus = deployResult.result.status;
+              const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
+              console.log('Deploy report content:', deployContent);
+              
+              deployResult = JSON.parse(deployContent);
+              console.log('Parsed deploy result:', JSON.stringify(deployResult, null, 2));
+              
+              const deployStatus = deployResult.status || deployResult.result?.status;
               comment += `| Deployment | ${deployStatus === 'Success' ? '✅ Ready' : '❌ Failed'} |\n\n`;
             } catch (e) {
+              console.error('Error parsing deploy report:', e);
               comment += '| Deployment | ❌ Error parsing results |\n\n';
             }
             
@@ -273,14 +283,14 @@ jobs:
               }
               
               // Deployment Details
-              if (deployResult?.result) {
-                const result = deployResult.result;
+              if (deployResult) {
+                const result = deployResult.result || deployResult;
                 
-                // Always show deployment info first
+                // Always show deployment info
                 comment += '<details><summary><b>🚀 Deployment Validation</b></summary>\n\n';
-                comment += `- **Status**: ${result.status}\n`;
-                comment += `- **Deploy ID**: \`${result.id}\`\n`;
-                comment += `- **Organization**: \`${result.deployedTo}\`\n`;
+                comment += `- **Status**: ${result.status || 'Unknown'}\n`;
+                comment += `- **Deploy ID**: \`${result.id || 'N/A'}\`\n`;
+                comment += `- **Organization**: \`${result.deployedTo || result.targetOrg || 'N/A'}\`\n`;
                 if (result.deployUrl) {
                   comment += `- **[View Deployment Details](${result.deployUrl})**\n`;
                 }
@@ -293,9 +303,9 @@ jobs:
                 // Show test results summary if available
                 if (result.details?.runTestResult) {
                   const testResults = result.details.runTestResult;
-                  comment += `- **Tests Completed**: ${testResults.numTestsRun}\n`;
-                  comment += `- **Tests Failed**: ${testResults.numFailures}\n`;
-                  comment += `- **Total Test Time**: ${testResults.totalTime}s\n`;
+                  comment += `- **Tests Completed**: ${testResults.numTestsRun || 0}\n`;
+                  comment += `- **Tests Failed**: ${testResults.numFailures || 0}\n`;
+                  comment += `- **Total Test Time**: ${testResults.totalTime || 0}s\n`;
                 }
                 comment += '\n';
                 
