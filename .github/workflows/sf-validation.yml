@@ -29,18 +29,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'  # Enable built-in npm cache
 
       - name: Cache node_modules
         uses: actions/cache@v4
         id: npm-cache
         with:
           path: node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package.json') }}
 
       - name: Install dependencies
         if: steps.npm-cache.outputs.cache-hit != 'true'
-        run: npm ci  # Using npm ci instead of npm install for more reliable builds
+        run: |
+          npm install
+          npm shrinkwrap  # Creates npm-shrinkwrap.json for future cache hits
 
       - name: Get changed files
         id: changed-files
