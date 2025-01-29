@@ -206,10 +206,9 @@ jobs:
             --post-destructive-changes destructiveChanges/destructiveChangesPost.xml \
             --test-level RunLocalTests \
             --target-org validation-org \
-            --verbose > deploy_report.txt 2>&1 || {
+            --json > deploy_report.json 2>&1 || {
               echo "DEPLOY_FAILED=true" >> $GITHUB_ENV
               echo "Deployment validation failed"
-              exit 1
             }
 
       - name: Create PR Comment
@@ -248,13 +247,14 @@ jobs:
             
             // Deployment Summary
             const hasDeployIssues = process.env.DEPLOY_FAILED === 'true';
-            let deployOutput;
+            let deployResult;
             try {
-              deployOutput = fs.readFileSync('deploy_report.txt', 'utf8').trim();
+              deployResult = JSON.parse(fs.readFileSync('deploy_report.json', 'utf8'));
+              const deployStatus = deployResult.result.status;
+              comment += `| Deployment | ${deployStatus === 'Success' ? '✅ Ready' : '❌ Failed'} |\n\n`;
             } catch (e) {
-              deployOutput = 'No deployment performed';
+              comment += '| Deployment | ❌ Error parsing results |\n\n';
             }
-            comment += `| Deployment | ${hasDeployIssues ? '❌ Failed' : '✅ Ready'} |\n\n`;
             
             // Detailed Results
             if (hasEslintIssues || hasPmdIssues || hasDeployIssues) {
@@ -273,33 +273,61 @@ jobs:
               }
               
               // Deployment Details
-              if (deployOutput && deployOutput !== 'No deployment performed') {
-                const title = hasDeployIssues ? '❌ Deployment Failed' : '✅ Deployment Succeeded';
-                comment += `<details><summary><b>🚀 ${title}</b></summary>\n\n`;
+              if (deployResult?.result) {
+                const result = deployResult.result;
                 
-                // Format deployment output
-                const formattedOutput = deployOutput
-                  .replace(/^Validating Deployment/m, '### 🔄 Validating Deployment')
-                  .replace(/^───── Validating Deployment ─────/m, '')
-                  .replace(/^Stages:/m, '### 📋 Stages:')
-                  .replace(/^(\d+\. \w+.*$)/gm, '- $1')
-                  .replace(/^▶ (.*?)…$/gm, '### ▶️ $1')
-                  .replace(/^✔ (.*?) \((.*?)\)$/gm, '✅ **$1** ($2)')
-                  .replace(/^✘ (.*?) \((.*?)\)$/gm, '❌ **$1** ($2)')
-                  .replace(/^◯ (.*?) - Skipped$/gm, '⏭️ **$1** - *Skipped*')
-                  .replace(/^   Components: (\d+)\/(\d+) \((\d+)%\)/gm, '📊 Progress: **$1**/**$2** (*$3%*)')
-                  .replace(/^   Deploy ID: (.*?)$/gm, '🔑 Deploy ID: `$1`')
-                  .replace(/^   Target Org: (.*?)$/gm, '🎯 Target Org: `$1`')
-                  .replace(/^   Deploy URL: (.*?)$/gm, '🔗 [View Deployment Details]($1)');
-
-                comment += formattedOutput + '\n</details>\n\n';
+                if (result.details.componentFailures && result.details.componentFailures.length > 0) {
+                  comment += '<details><summary><b>🚫 Component Validation Failures</b></summary>\n\n';
+                  comment += '| Type | Component | Problem |\n';
+                  comment += '|------|-----------|----------|\n';
+                  result.details.componentFailures.forEach(failure => {
+                    comment += `| ${failure.componentType} | ${failure.fullName} | ${failure.problem} |\n`;
+                  });
+                  comment += '\n</details>\n\n';
+                }
+                
+                if (result.details.runTestResult?.failures && result.details.runTestResult.failures.length > 0) {
+                  comment += '<details><summary><b>❌ Test Failures</b></summary>\n\n';
+                  comment += '| Class | Method | Error |\n';
+                  comment += '|-------|--------|-------|\n';
+                  result.details.runTestResult.failures.forEach(failure => {
+                    comment += `| ${failure.name} | ${failure.methodName} | ${failure.message} |\n`;
+                  });
+                  comment += '\n';
+                  
+                  if (failure.stackTrace) {
+                    comment += '<details><summary>Stack Trace</summary>\n\n';
+                    comment += '```\n' + failure.stackTrace + '\n```\n';
+                    comment += '</details>\n\n';
+                  }
+                  comment += '</details>\n\n';
+                }
+                
+                // Test Coverage Summary
+                if (result.details.runTestResult?.codeCoverageWarnings) {
+                  comment += '<details><summary><b>⚠️ Coverage Warnings</b></summary>\n\n';
+                  result.details.runTestResult.codeCoverageWarnings.forEach(warning => {
+                    comment += `- ${warning.message}\n`;
+                  });
+                  comment += '\n</details>\n\n';
+                }
+                
+                // Deployment Info
+                comment += '<details><summary><b>🔍 Deployment Information</b></summary>\n\n';
+                comment += `- **Status**: ${result.status}\n`;
+                comment += `- **Deploy ID**: \`${result.id}\`\n`;
+                comment += `- **Organization**: \`${result.deployedTo}\`\n`;
+                if (result.deployUrl) {
+                  comment += `- **[View Deployment Details](${result.deployUrl})**\n`;
+                }
+                comment += '\n</details>\n\n';
               }
               
               comment += '</details>\n\n';
-            } else if (deployOutput && deployOutput !== 'No deployment performed') {
+            } else if (deployResult && deployResult !== 'No deployment performed') {
               // Show successful deployment details even when no issues
               comment += '<details><summary><b>🚀 ✅ Deployment Details</b></summary>\n\n';
-              const formattedOutput = deployOutput
+              const formattedOutput = deployResult
                 .replace(/^Validating Deployment/m, '### 🔄 Validating Deployment')
                 .replace(/^───── Validating Deployment ─────/m, '')
                 .replace(/^Stages:/m, '### 📋 Stages:')
