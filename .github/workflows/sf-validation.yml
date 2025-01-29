@@ -58,7 +58,25 @@ jobs:
           
           if [ ! -z "$CHANGED_JS_FILES" ]; then
             echo "Running ESLint on: $CHANGED_JS_FILES"
-            npx eslint $CHANGED_JS_FILES --format stylish 2>&1 | tee eslint_report.txt || true
+            npx eslint $CHANGED_JS_FILES --format json 2>&1 | node -e '
+              const results = JSON.parse(require("fs").readFileSync(0, "utf-8"));
+              let output = "";
+              results.forEach(result => {
+                const fileName = result.filePath.split("/").pop();
+                if (result.messages.length > 0) {
+                  output += `\n${fileName}:\n`;
+                  result.messages.forEach(msg => {
+                    const severity = msg.severity === 2 ? "Error" : "Warning";
+                    output += `${severity} - ${msg.line}:${msg.column} => ${msg.ruleId}  ${msg.message}\n`;
+                  });
+                }
+              });
+              if (output) {
+                console.log(output);
+              } else {
+                console.log("No issues found");
+              }
+            ' | tee eslint_report.txt || true
             if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               echo "ESLINT_FAILED=true" >> $GITHUB_ENV
               echo "ESLint found issues"
@@ -106,10 +124,31 @@ jobs:
             ./pmd-bin/bin/pmd check \
               -d "$CHANGED_APEX_FILES" \
               -R pmdRuleset.xml \
-              -f text \
+              -f json \
               --force-language apex \
               --fail-on-violation \
-              2>&1 | tee pmd_report.txt || true
+              2>&1 | node -e '
+              try {
+                const results = JSON.parse(require("fs").readFileSync(0, "utf-8"));
+                let output = "";
+                results.files.forEach(file => {
+                  if (file.violations.length > 0) {
+                    const fileName = file.filename.split("/").pop();
+                    output += `\n${fileName}:\n`;
+                    file.violations.forEach(v => {
+                      output += `${v.priority === 1 ? "Error" : "Warning"} - ${v.beginline}:${v.begincolumn} => ${v.rule}  ${v.description}\n`;
+                    });
+                  }
+                });
+                if (output) {
+                  console.log(output);
+                } else {
+                  console.log("No issues found");
+                }
+              } catch (e) {
+                console.log("Error parsing PMD output:", e.message);
+              }
+              ' | tee pmd_report.txt || true
             if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               echo "PMD_FAILED=true" >> $GITHUB_ENV
               echo "PMD found issues"
