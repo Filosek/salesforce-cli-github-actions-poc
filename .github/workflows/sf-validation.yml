@@ -51,7 +51,11 @@ jobs:
         run: |
           CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.js$" || true)
           if [ ! -z "$CHANGED_JS_FILES" ]; then
-            npx eslint $CHANGED_JS_FILES --format stylish > eslint_report.txt || echo "ESLint found issues"
+            echo "Running ESLint on: $CHANGED_JS_FILES"
+            npx eslint $CHANGED_JS_FILES --format stylish > eslint_report.txt 2>&1 || {
+              echo "ESLINT_FAILED=true" >> $GITHUB_ENV
+              echo "ESLint found issues"
+            }
           else
             echo "No JS files to lint" > eslint_report.txt
           fi
@@ -68,7 +72,7 @@ jobs:
         id: cache-pmd
         uses: actions/cache@v4
         with:
-          path: pmd-bin-7.9.0
+          path: pmd-bin
           key: ${{ runner.os }}-pmd-7.9.0
 
       - name: Download PMD
@@ -85,12 +89,15 @@ jobs:
         run: |
           CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.(cls|trigger|page)$" || true)
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
+            echo "Running PMD on: $CHANGED_APEX_FILES"
             ./pmd-bin/bin/pmd check \
               -d "$CHANGED_APEX_FILES" \
               -R pmdRuleset.xml \
               -f text \
-              -language apex \
-              -failOnViolation true > pmd_report.txt || echo "PMD found issues"
+              -language apex > pmd_report.txt 2>&1 || {
+                echo "PMD_FAILED=true" >> $GITHUB_ENV
+                echo "PMD found issues"
+              }
           else
             echo "No Apex files to analyze" > pmd_report.txt
           fi
@@ -141,7 +148,10 @@ jobs:
             --manifest package/package.xml \
             --test-level RunLocalTests \
             --target-org validation-org \
-            --verbose > deploy_report.txt || echo "Deployment validation failed"
+            --verbose > deploy_report.txt 2>&1 || {
+              echo "DEPLOY_FAILED=true" >> $GITHUB_ENV
+              echo "Deployment validation failed"
+            }
 
       - name: Create PR Comment
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -154,34 +164,39 @@ jobs:
             
             // ESLint Results
             comment += '### ESLint Results\n```\n';
-            comment += fs.existsSync('eslint_report.txt') 
-              ? fs.readFileSync('eslint_report.txt', 'utf8')
-              : 'No JavaScript files checked';
+            try {
+              const eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
+              comment += eslintOutput || 'No issues found';
+            } catch (e) {
+              comment += 'No JavaScript files checked';
+            }
             comment += '\n```\n\n';
             
             // PMD Results
             comment += '### PMD Analysis\n```\n';
-            comment += fs.existsSync('pmd_report.txt')
-              ? fs.readFileSync('pmd_report.txt', 'utf8')
-              : 'No Apex files analyzed';
+            try {
+              const pmdOutput = fs.readFileSync('pmd_report.txt', 'utf8').trim();
+              comment += pmdOutput || 'No issues found';
+            } catch (e) {
+              comment += 'No Apex files analyzed';
+            }
             comment += '\n```\n\n';
             
             // Deployment Results
             comment += '### Deployment Validation\n```\n';
-            comment += fs.existsSync('deploy_report.txt')
-              ? fs.readFileSync('deploy_report.txt', 'utf8')
-              : 'No deployment performed';
+            try {
+              const deployOutput = fs.readFileSync('deploy_report.txt', 'utf8').trim();
+              comment += deployOutput;
+            } catch (e) {
+              comment += 'No deployment performed';
+            }
             comment += '\n```\n\n';
             
             // Summary
-            const eslintSuccess = !process.env.ESLINT_FAILED;
-            const pmdSuccess = !process.env.PMD_FAILED;
-            const deploySuccess = !process.env.DEPLOY_FAILED;
-            
             comment += '### Summary\n';
-            comment += `- ESLint: ${eslintSuccess ? '✅' : '❌'}\n`;
-            comment += `- PMD: ${pmdSuccess ? '✅' : '❌'}\n`;
-            comment += `- Deployment: ${deploySuccess ? '✅' : '❌'}\n`;
+            comment += `- ESLint: ${process.env.ESLINT_FAILED ? '❌' : '✅'}\n`;
+            comment += `- PMD: ${process.env.PMD_FAILED ? '❌' : '✅'}\n`;
+            comment += `- Deployment: ${process.env.DEPLOY_FAILED ? '❌' : '✅'}\n`;
             
             // Post comment
             const { issue: { number: issue_number }, repo: { owner, repo } } = context;
