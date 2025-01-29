@@ -58,7 +58,7 @@ jobs:
           
           if [ ! -z "$CHANGED_JS_FILES" ]; then
             echo "Running ESLint on: $CHANGED_JS_FILES"
-            npx eslint $CHANGED_JS_FILES --format node_modules/eslint-formatter-pretty 2>&1 | tee eslint_report.txt || true
+            npx eslint $CHANGED_JS_FILES --format ./node_modules/eslint-formatter-pretty/index.js 2>&1 | tee eslint_report.txt || true
             if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               echo "ESLINT_FAILED=true" >> $GITHUB_ENV
               echo "ESLint found issues"
