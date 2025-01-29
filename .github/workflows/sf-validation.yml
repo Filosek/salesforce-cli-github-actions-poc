@@ -273,20 +273,58 @@ jobs:
               }
               
               // Deployment Details
-              if (hasDeployIssues) {
-                comment += '<details><summary><b>🚀 Deployment Issues</b></summary>\n\n';
-                comment += '```\n' + deployOutput + '\n```\n</details>\n\n';
+              if (deployOutput && deployOutput !== 'No deployment performed') {
+                const title = hasDeployIssues ? '❌ Deployment Failed' : '✅ Deployment Succeeded';
+                comment += `<details><summary><b>🚀 ${title}</b></summary>\n\n`;
+                
+                // Format deployment output
+                const formattedOutput = deployOutput
+                  .replace(/^Validating Deployment/m, '### 🔄 Validating Deployment')
+                  .replace(/^───── Validating Deployment ─────/m, '')
+                  .replace(/^Stages:/m, '### 📋 Stages:')
+                  .replace(/^(\d+\. \w+.*$)/gm, '- $1')
+                  .replace(/^▶ (.*?)…$/gm, '### ▶️ $1')
+                  .replace(/^✔ (.*?) \((.*?)\)$/gm, '✅ **$1** ($2)')
+                  .replace(/^✘ (.*?) \((.*?)\)$/gm, '❌ **$1** ($2)')
+                  .replace(/^◯ (.*?) - Skipped$/gm, '⏭️ **$1** - *Skipped*')
+                  .replace(/^   Components: (\d+)\/(\d+) \((\d+)%\)/gm, '📊 Progress: **$1**/**$2** (*$3%*)')
+                  .replace(/^   Deploy ID: (.*?)$/gm, '🔑 Deploy ID: `$1`')
+                  .replace(/^   Target Org: (.*?)$/gm, '🎯 Target Org: `$1`')
+                  .replace(/^   Deploy URL: (.*?)$/gm, '🔗 [View Deployment Details]($1)');
+
+                comment += formattedOutput + '\n</details>\n\n';
               }
               
               comment += '</details>\n\n';
+            } else if (deployOutput && deployOutput !== 'No deployment performed') {
+              // Show successful deployment details even when no issues
+              comment += '<details><summary><b>🚀 ✅ Deployment Details</b></summary>\n\n';
+              const formattedOutput = deployOutput
+                .replace(/^Validating Deployment/m, '### 🔄 Validating Deployment')
+                .replace(/^───── Validating Deployment ─────/m, '')
+                .replace(/^Stages:/m, '### 📋 Stages:')
+                .replace(/^(\d+\. \w+.*$)/gm, '- $1')
+                .replace(/^▶ (.*?)…$/gm, '### ▶️ $1')
+                .replace(/^✔ (.*?) \((.*?)\)$/gm, '✅ **$1** ($2)')
+                .replace(/^✘ (.*?) \((.*?)\)$/gm, '❌ **$1** ($2)')
+                .replace(/^◯ (.*?) - Skipped$/gm, '⏭️ **$1** - *Skipped*')
+                .replace(/^   Components: (\d+)\/(\d+) \((\d+)%\)/gm, '📊 Progress: **$1**/**$2** (*$3%*)')
+                .replace(/^   Deploy ID: (.*?)$/gm, '🔑 Deploy ID: `$1`')
+                .replace(/^   Target Org: (.*?)$/gm, '🎯 Target Org: `$1`')
+                .replace(/^   Deploy URL: (.*?)$/gm, '🔗 [View Deployment Details]($1)');
+              comment += formattedOutput + '\n</details>\n\n';
             }
             
             // Final Status
             const allPassed = !hasEslintIssues && !hasPmdIssues && !hasDeployIssues;
             comment += '---\n';
-            comment += allPassed ? 
-              '✅ **All checks passed successfully!**\n' : 
-              '❌ **Some checks failed. Please review the details above.**\n';
+            if (allPassed) {
+              comment += '### ✅ All checks passed successfully!\n';
+              comment += '> Ready to be merged 🚀\n';
+            } else {
+              comment += '### ❌ Some checks failed\n';
+              comment += '> Please review the details above and fix the issues ⚠️\n';
+            }
             
             // Post comment
             const { issue: { number: issue_number }, repo: { owner, repo } } = context;
