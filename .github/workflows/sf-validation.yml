@@ -32,8 +32,8 @@ jobs:
           cache: 'npm'
 
       - name: Cache node_modules
-        uses: actions/cache@v4
         id: node-modules-cache
+        uses: actions/cache/restore@v4
         with:
           path: node_modules
           key: ${{ runner.os }}-node-modules-${{ hashFiles('package.json', 'package-lock.json') }}
@@ -45,6 +45,13 @@ jobs:
         run: |
           echo "Cache miss - installing dependencies"
           npm ci
+
+      - name: Save node_modules cache
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package.json', 'package-lock.json') }}
 
       - name: Get changed files
         id: changed-files
