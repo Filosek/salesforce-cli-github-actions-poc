@@ -230,6 +230,60 @@ jobs:
             
             let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
             
+            // Parse ESLint results for severity counts
+            let eslintCritical = 0;
+            let eslintWarnings = 0;
+            try {
+              const eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
+              if (eslintOutput !== 'No JS files to lint' && eslintOutput !== 'No ESLint issues found') {
+                const lines = eslintOutput.split('\n');
+                // Skip header lines and summary
+                lines.slice(2, -2).forEach(line => {
+                  if (line.includes('error')) eslintCritical++;
+                  if (line.includes('warning')) eslintWarnings++;
+                });
+              }
+            } catch (e) {}
+
+            // Parse PMD results for severity counts
+            let pmdCritical = 0;
+            let pmdWarnings = 0;
+            try {
+              const pmdOutput = fs.readFileSync('pmd_report.txt', 'utf8').trim();
+              if (pmdOutput !== 'No Apex files to analyze' && pmdOutput !== 'No PMD issues found') {
+                const lines = pmdOutput.split('\n');
+                // Skip header lines
+                lines.slice(2).forEach(line => {
+                  if (line.includes('Priority: 1')) pmdCritical++;
+                  if (line.includes('Priority: 3')) pmdWarnings++;
+                });
+              }
+            } catch (e) {}
+
+            // Add severity summary diagram
+            const totalCritical = eslintCritical + pmdCritical;
+            const totalWarnings = eslintWarnings + pmdWarnings;
+            
+            if (totalCritical > 0 || totalWarnings > 0) {
+              comment += '### 📊 Issues Severity\n\n';
+              comment += '```mermaid\npie\n';
+              comment += '    title Issues Distribution\n';
+              if (totalCritical > 0) {
+                comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
+              }
+              if (totalWarnings > 0) {
+                comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
+              }
+              comment += '    %%{init: {"pie": {"colorScheme": ["#ff0000", "#ffa500"]}} }%%\n';  // Red for Critical, Orange for Warnings
+              comment += '```\n\n';
+              
+              // Add detailed breakdown
+              comment += '| Tool | Critical | Warnings |\n';
+              comment += '|------|----------|----------|\n';
+              comment += `| ESLint | ${eslintCritical} | ${eslintWarnings} |\n`;
+              comment += `| PMD | ${pmdCritical} | ${pmdWarnings} |\n\n`;
+            }
+            
             // Quick Summary at the top
             comment += '### 📊 Summary\n\n';
             comment += '| Check | Status |\n';
