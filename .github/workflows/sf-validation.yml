@@ -138,8 +138,12 @@ jobs:
               2>&1 | node -e '
                 const input = require("fs").readFileSync(0, "utf-8");
                 try {
-                  console.log("Raw PMD output:", input);  // Debug
-                  const result = JSON.parse(input);
+                  // Filter out warning lines and get only the JSON part
+                  const jsonStart = input.indexOf("{");
+                  const jsonPart = input.slice(jsonStart);
+                  
+                  console.log("Filtered PMD output:", jsonPart);  // Debug
+                  const result = JSON.parse(jsonPart);
                   console.log("Parsed PMD result:", JSON.stringify(result, null, 2));  // Debug
                   
                   // Collect all violations
