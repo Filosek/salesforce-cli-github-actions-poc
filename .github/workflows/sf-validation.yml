@@ -68,7 +68,31 @@ jobs:
           CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep "\.js$" | grep -v "meta\.xml$" || true)
           if [ ! -z "$CHANGED_JS_FILES" ]; then
             echo "Running ESLint on: $CHANGED_JS_FILES"
-            npx eslint $CHANGED_JS_FILES --format ./node_modules/eslint-formatter-pretty/index.js 2>&1 | tee eslint_report.txt || true
+            npx eslint $CHANGED_JS_FILES --format json | node -e '
+              const results = JSON.parse(require("fs").readFileSync(0, "utf-8"));
+              
+              const violations = results.flatMap(result => {
+                const fileName = result.filePath.split("/").pop();
+                return result.messages.map(msg => ({
+                  file: fileName,
+                  line: msg.line,
+                  column: msg.column,
+                  rule: msg.ruleId,
+                  description: msg.message
+                }));
+              });
+              
+              if (violations.length > 0) {
+                console.log("| File | Line | Column | Rule | Description |");
+                console.log("|------|------|--------|------|-------------|");
+                violations.forEach(v => {
+                  console.log(`| ${v.file} | ${v.line} | ${v.column} | ${v.rule} | ${v.description} |`);
+                });
+                console.log(`\n✖ ${violations.length} ${violations.length === 1 ? "problem" : "problems"}`);
+              } else {
+                console.log("No ESLint issues found");
+              }
+            ' | tee eslint_report.txt || true
             if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               echo "ESLINT_FAILED=true" >> $GITHUB_ENV
             fi
@@ -249,7 +273,7 @@ jobs:
             // ESLint Details
             if (hasEslintIssues) {
               comment += '<details><summary><b>🔍 ESLint Issues</b></summary>\n\n';
-              comment += '```\n' + eslintOutput + '\n```\n</details>\n\n';
+              comment += '\n' + eslintOutput + '\n\n</details>\n\n';
             }
             
             // PMD Details
