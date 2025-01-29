@@ -5,7 +5,8 @@
   "devDependencies": {
     "@babel/eslint-parser": "^7.24.1",
     "eslint": "^8.57.0",
-    "@salesforce/cli": "^2.29.2"
+    "@salesforce/cli": "^2.73.9",
+    "sfdx-git-delta": "^5.0.0"
   },
   "engines": {
     "node": ">=20.0.0"

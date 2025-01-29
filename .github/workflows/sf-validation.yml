@@ -75,23 +75,28 @@ jobs:
 
       - name: Install Salesforce CLI
         run: |
-          wget https://developer.salesforce.com/media/salesforce-cli/sf/channels/stable/sf-linux-x64.tar.xz
-          mkdir -p $HOME/sf
-          tar xJf sf-linux-x64.tar.xz -C $HOME/sf --strip-components 1
-          echo "$HOME/sf/bin" >> $GITHUB_PATH
+          npm install --global @salesforce/cli
           
+      - name: Install sfdx-git-delta
+        run: |
+          echo y | sf plugins install sfdx-git-delta
+
+      - name: Generate delta package
+        run: |
+          TARGET_BRANCH=${{ github.base_ref }}
+          sf sgd source delta \
+            --to HEAD \
+            --from "origin/$TARGET_BRANCH" \
+            --output . \
+            --source-dir force-app \
+            --generate-delta
+
       - name: Authenticate to Salesforce
         run: |
           echo "${{ secrets.SFDX_AUTH_URL }}" > ./authfile
           sf org login sfdx-url -f ./authfile -a validation-org
           rm ./authfile
-
-      - name: Generate delta package
-        run: |
-          TARGET_BRANCH=${{ github.base_ref }}
-          echo "Generating delta package for changes from $TARGET_BRANCH"
-          sf project generate manifest --source-dir force-app/ --from "origin/$TARGET_BRANCH" --output .
           
       - name: Deploy to validation org
         run: |
-          sf project deploy validate --manifest package.xml --test-level RunLocalTests
+          sf project deploy validate --manifest package/package.xml --test-level RunLocalTests
