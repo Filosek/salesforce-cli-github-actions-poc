@@ -111,7 +111,30 @@ jobs:
               -R pmdRuleset.xml \
               -f text \
               --force-language apex \
-              2>&1 | tee pmd_report.txt
+              2>&1 | node -e '
+                const input = require("fs").readFileSync(0, "utf-8");
+                const lines = input.split("\n");
+                
+                // Filter out warnings and empty lines
+                const violations = lines
+                  .filter(line => line.includes("cls:") || line.includes("trigger:") || line.includes("page:"))
+                  .map(line => {
+                    const [file, lineNum, rule, ...descParts] = line.split(":");
+                    const className = file.split("/").pop();
+                    const description = descParts.join(":").trim();
+                    return { className, lineNum, rule: rule.trim(), description };
+                  });
+                
+                if (violations.length > 0) {
+                  console.log("| Class | Line | Rule | Description |");
+                  console.log("|-------|------|------|-------------|");
+                  violations.forEach(v => {
+                    console.log(`| ${v.className} | ${v.lineNum} | ${v.rule} | ${v.description} |`);
+                  });
+                } else {
+                  console.log("No PMD issues found");
+                }
+              ' | tee pmd_report.txt
             if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               echo "PMD_FAILED=true" >> $GITHUB_ENV
             fi
