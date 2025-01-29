@@ -9,6 +9,10 @@ on:
       - 'eslint.config.mjs'
       - 'pmdRuleset.xml'
 
+concurrency:
+  group: 'salesforce-validation'
+  cancel-in-progress: false     
+
 permissions:
   contents: read
   pull-requests: write
@@ -173,7 +177,7 @@ jobs:
             --output . \
             --source-dir force-app \
             --generate-delta
-          
+
           if [ ! -f "package/package.xml" ]; then
             echo "No package.xml generated - no metadata changes detected"
             exit 0
@@ -194,13 +198,18 @@ jobs:
         continue-on-error: true
         run: |
           echo "Starting deployment validation..."
+          
+          # Single deployment with all changes
           npx sf project deploy validate \
             --manifest package/package.xml \
+            --pre-destructive-changes destructiveChanges/destructiveChangesPre.xml \
+            --post-destructive-changes destructiveChanges/destructiveChangesPost.xml \
             --test-level RunLocalTests \
             --target-org validation-org \
             --verbose > deploy_report.txt 2>&1 || {
               echo "DEPLOY_FAILED=true" >> $GITHUB_ENV
               echo "Deployment validation failed"
+              exit 1
             }
 
       - name: Create PR Comment
