@@ -1,0 +1,13 @@
+{
+  "name": "salesforce-cli-github-actions",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "@babel/eslint-parser": "^7.24.1",
+    "eslint": "^8.57.0",
+    "@salesforce/cli": "^2.29.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+} 
