@@ -118,24 +118,11 @@ jobs:
             echo "No Apex files to analyze" > pmd_report.txt
           fi
 
-      - name: Cache SF CLI plugins
-        uses: actions/cache@v4
-        id: sf-plugins-cache
-        with:
-          path: |
-            ~/.local/share/sfdx
-            ~/.sf
-          key: ${{ runner.os }}-sf-plugins-${{ hashFiles('package.json') }}
-
-      - name: Install sfdx-git-delta
+      - name: Install sfdx-git-delta plugin
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          if ! npx sf plugins list | grep sfdx-git-delta > /dev/null; then
-            echo "Installing sfdx-git-delta plugin..."
-            echo y | npx sf plugins install sfdx-git-delta
-          else
-            echo "Using cached sfdx-git-delta plugin"
-          fi
+          echo "Installing sfdx-git-delta plugin..."
+          echo y | npx sf plugins install sfdx-git-delta
 
       - name: Generate delta package
         if: steps.changed-files.outputs.any_changed == 'true'
