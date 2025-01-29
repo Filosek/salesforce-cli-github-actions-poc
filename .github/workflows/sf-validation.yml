@@ -49,7 +49,7 @@ jobs:
         id: eslint
         continue-on-error: true
         run: |
-          CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.js$" || true)
+          CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.js$" | grep -v "meta\.xml$" || true)
           if [ ! -z "$CHANGED_JS_FILES" ]; then
             echo "Running ESLint on: $CHANGED_JS_FILES"
             npx eslint $CHANGED_JS_FILES --format stylish 2>&1 | tee eslint_report.txt || true
@@ -88,7 +88,7 @@ jobs:
         id: pmd
         continue-on-error: true
         run: |
-          CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.(cls|trigger|page)$" || true)
+          CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.(cls|trigger|page)$" | grep -v "meta\.xml$" || true)
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
             echo "Running PMD on: $CHANGED_APEX_FILES"
             ./pmd-bin/bin/pmd check \
