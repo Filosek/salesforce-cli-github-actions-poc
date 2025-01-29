@@ -118,15 +118,35 @@ jobs:
             echo "No Apex files to analyze" > pmd_report.txt
           fi
 
+      - name: Cache SF CLI and plugins
+        uses: actions/cache@v4
+        id: sf-cache
+        with:
+          path: |
+            ~/.local/share/sfdx
+            ~/.sf
+            /usr/local/lib/node_modules/@salesforce/cli
+          key: ${{ runner.os }}-sf-cli-${{ hashFiles('package.json') }}
+
       - name: Install Salesforce CLI
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          npm install --global @salesforce/cli
-          
+          if [ ! -d "/usr/local/lib/node_modules/@salesforce/cli" ]; then
+            echo "Installing SF CLI..."
+            npm install --global @salesforce/cli
+          else
+            echo "Using cached SF CLI"
+          fi
+
       - name: Install sfdx-git-delta
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          echo y | sf plugins install sfdx-git-delta
+          if ! sf plugins list | grep sfdx-git-delta > /dev/null; then
+            echo "Installing sfdx-git-delta plugin..."
+            echo y | sf plugins install sfdx-git-delta
+          else
+            echo "Using cached sfdx-git-delta plugin"
+          fi
 
       - name: Generate delta package
         if: steps.changed-files.outputs.any_changed == 'true'
