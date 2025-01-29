@@ -107,7 +107,9 @@ jobs:
               -d "$CHANGED_APEX_FILES" \
               -R pmdRuleset.xml \
               -f text \
-              -language apex 2>&1 | tee pmd_report.txt || true
+              --force-language apex \
+              --fail-on-violation \
+              2>&1 | tee pmd_report.txt || true
             if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               echo "PMD_FAILED=true" >> $GITHUB_ENV
               echo "PMD found issues"
