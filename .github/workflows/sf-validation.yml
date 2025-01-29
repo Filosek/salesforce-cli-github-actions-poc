@@ -152,30 +152,26 @@ jobs:
                     }));
                   });
                   
+                  // Store priorities in a separate file for severity counting
+                  const priorities = violations.map(v => v.priority);
+                  require("fs").writeFileSync("pmd_priorities.json", JSON.stringify(priorities));
+                  
                   if (violations.length > 0) {
                     console.log("| Class | Line | Rule | Description |");
                     console.log("|-------|------|------|-------------|");
                     violations.forEach(v => {
                       console.log(`| ${v.file} | ${v.line} | ${v.rule} | ${v.description} |`);
                     });
-                  } else {
-                    console.log("No PMD issues found");
                   }
-                  
-                  // Store priorities in a separate file for severity counting
-                  const priorities = violations.map(v => v.priority);
-                  require("fs").writeFileSync("pmd_priorities.json", JSON.stringify(priorities));
-                  
                 } catch (e) {
                   console.error("Error processing PMD output:", e);
-                  console.log("No PMD issues found");
+                  require("fs").writeFileSync("pmd_priorities.json", "[]");
                 }
-              ' | tee pmd_report.txt
+              ' | tee pmd_report.txt || true
             if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               echo "PMD_FAILED=true" >> $GITHUB_ENV
             fi
           else
-            echo "No Apex files to analyze" > pmd_report.txt
             echo "[]" > pmd_priorities.json
           fi
 
@@ -250,11 +246,9 @@ jobs:
               const eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
               if (eslintOutput !== 'No JS files to lint' && eslintOutput !== 'No ESLint issues found') {
                 const lines = eslintOutput.split('\n');
-                // Skip header and footer lines
                 lines.slice(2, -2).forEach(line => {
                   const parts = line.split('|').map(p => p.trim());
-                  if (parts.length >= 5) {  // Make sure we have enough columns
-                    // Rule column is parts[4]
+                  if (parts.length >= 5) {
                     if (parts[4].startsWith('error:')) eslintCritical++;
                     if (parts[4].startsWith('warning:')) eslintWarnings++;
                   }
@@ -269,13 +263,13 @@ jobs:
             let pmdWarnings = 0;
             try {
               const pmdPriorities = JSON.parse(fs.readFileSync('pmd_priorities.json', 'utf8'));
-              pmdCritical = pmdPriorities.filter(p => p <= 2).length;  // Priority 1-2 are critical
-              pmdWarnings = pmdPriorities.filter(p => p > 2).length;   // Priority 3+ are warnings
+              pmdCritical = pmdPriorities.filter(p => p <= 2).length;
+              pmdWarnings = pmdPriorities.filter(p => p > 2).length;
             } catch (e) {
               console.error('Error parsing PMD priorities:', e);
             }
 
-            // Add severity summary diagram
+            // Add severity summary diagram - moved before the main summary
             const totalCritical = eslintCritical + pmdCritical;
             const totalWarnings = eslintWarnings + pmdWarnings;
             
@@ -283,16 +277,11 @@ jobs:
               comment += '### 📊 Issues Severity\n\n';
               comment += '```mermaid\npie\n';
               comment += '    title Issues Distribution\n';
-              if (totalCritical > 0) {
-                comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
-              }
-              if (totalWarnings > 0) {
-                comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
-              }
+              comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
+              comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
               comment += '    %%{init: {"pie": {"colorScheme": ["#ff0000", "#ffa500"]}} }%%\n';
               comment += '```\n\n';
               
-              // Add detailed breakdown
               comment += '| Tool | Critical | Warnings |\n';
               comment += '|------|----------|----------|\n';
               comment += `| ESLint | ${eslintCritical} | ${eslintWarnings} |\n`;
