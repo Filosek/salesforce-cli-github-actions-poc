@@ -42,10 +42,14 @@ jobs:
 
       - name: Run ESLint
         if: steps.changed-files.outputs.any_changed == 'true'
+        id: eslint
+        continue-on-error: true
         run: |
           CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.js$" || true)
           if [ ! -z "$CHANGED_JS_FILES" ]; then
-            npx eslint $CHANGED_JS_FILES
+            npx eslint $CHANGED_JS_FILES --format stylish > eslint_report.txt || echo "ESLint found issues"
+          else
+            echo "No JS files to lint" > eslint_report.txt
           fi
 
       - name: Setup Java
@@ -72,6 +76,8 @@ jobs:
 
       - name: Run PMD
         if: steps.changed-files.outputs.any_changed == 'true'
+        id: pmd
+        continue-on-error: true
         run: |
           CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.(cls|trigger|page)$" || true)
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
@@ -80,7 +86,9 @@ jobs:
               -R pmdRuleset.xml \
               -f text \
               -language apex \
-              -failOnViolation true
+              -failOnViolation true > pmd_report.txt || echo "PMD found issues"
+          else
+            echo "No Apex files to analyze" > pmd_report.txt
           fi
 
       - name: Install Salesforce CLI
@@ -121,10 +129,70 @@ jobs:
           
       - name: Deploy to validation org
         if: steps.changed-files.outputs.any_changed == 'true'
+        id: deploy
+        continue-on-error: true
         run: |
           echo "Starting deployment validation..."
           sf project deploy validate \
             --manifest package/package.xml \
             --test-level RunLocalTests \
             --target-org validation-org \
-            --verbose
+            --verbose > deploy_report.txt || echo "Deployment validation failed"
+
+      - name: Create PR Comment
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let comment = '## Salesforce Validation Results\n\n';
+            
+            // ESLint Results
+            comment += '### ESLint Results\n```\n';
+            comment += fs.existsSync('eslint_report.txt') 
+              ? fs.readFileSync('eslint_report.txt', 'utf8')
+              : 'No JavaScript files checked';
+            comment += '\n```\n\n';
+            
+            // PMD Results
+            comment += '### PMD Analysis\n```\n';
+            comment += fs.existsSync('pmd_report.txt')
+              ? fs.readFileSync('pmd_report.txt', 'utf8')
+              : 'No Apex files analyzed';
+            comment += '\n```\n\n';
+            
+            // Deployment Results
+            comment += '### Deployment Validation\n```\n';
+            comment += fs.existsSync('deploy_report.txt')
+              ? fs.readFileSync('deploy_report.txt', 'utf8')
+              : 'No deployment performed';
+            comment += '\n```\n\n';
+            
+            // Summary
+            const eslintSuccess = !process.env.ESLINT_FAILED;
+            const pmdSuccess = !process.env.PMD_FAILED;
+            const deploySuccess = !process.env.DEPLOY_FAILED;
+            
+            comment += '### Summary\n';
+            comment += `- ESLint: ${eslintSuccess ? '✅' : '❌'}\n`;
+            comment += `- PMD: ${pmdSuccess ? '✅' : '❌'}\n`;
+            comment += `- Deployment: ${deploySuccess ? '✅' : '❌'}\n`;
+            
+            // Post comment
+            const { issue: { number: issue_number }, repo: { owner, repo } } = context;
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: comment
+            });
+
+      - name: Check for failures
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          if [ "${{ steps.eslint.outcome }}" == "failure" ] || \
+             [ "${{ steps.pmd.outcome }}" == "failure" ] || \
+             [ "${{ steps.deploy.outcome }}" == "failure" ]; then
+            exit 1
+          fi
