@@ -118,32 +118,21 @@ jobs:
             echo "No Apex files to analyze" > pmd_report.txt
           fi
 
-      - name: Cache SF CLI and plugins
+      - name: Cache SF CLI plugins
         uses: actions/cache@v4
-        id: sf-cache
+        id: sf-plugins-cache
         with:
           path: |
             ~/.local/share/sfdx
             ~/.sf
-            /usr/local/lib/node_modules/@salesforce/cli
-          key: ${{ runner.os }}-sf-cli-${{ hashFiles('package.json') }}
-
-      - name: Install Salesforce CLI
-        if: steps.changed-files.outputs.any_changed == 'true'
-        run: |
-          if [ ! -d "/usr/local/lib/node_modules/@salesforce/cli" ]; then
-            echo "Installing SF CLI..."
-            npm install --global @salesforce/cli
-          else
-            echo "Using cached SF CLI"
-          fi
+          key: ${{ runner.os }}-sf-plugins-${{ hashFiles('package.json') }}
 
       - name: Install sfdx-git-delta
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          if ! sf plugins list | grep sfdx-git-delta > /dev/null; then
+          if ! npx sf plugins list | grep sfdx-git-delta > /dev/null; then
             echo "Installing sfdx-git-delta plugin..."
-            echo y | sf plugins install sfdx-git-delta
+            echo y | npx sf plugins install sfdx-git-delta
           else
             echo "Using cached sfdx-git-delta plugin"
           fi
@@ -153,7 +142,7 @@ jobs:
         run: |
           TARGET_BRANCH=${{ github.base_ref }}
           echo "Comparing changes with target branch: $TARGET_BRANCH"
-          sf sgd source delta \
+          npx sf sgd source delta \
             --to HEAD \
             --from "origin/$TARGET_BRANCH" \
             --output . \
@@ -171,7 +160,7 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           echo "${{ secrets.SFDX_AUTH_URL }}" > ./authfile
-          sf org login sfdx-url -f ./authfile -a validation-org
+          npx sf org login sfdx-url -f ./authfile -a validation-org
           rm ./authfile
           
       - name: Deploy to validation org
@@ -180,7 +169,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "Starting deployment validation..."
-          sf project deploy validate \
+          npx sf project deploy validate \
             --manifest package/package.xml \
             --test-level RunLocalTests \
             --target-org validation-org \
