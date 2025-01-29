@@ -84,12 +84,20 @@ jobs:
       - name: Generate delta package
         run: |
           TARGET_BRANCH=${{ github.base_ref }}
+          echo "Comparing changes with target branch: $TARGET_BRANCH"
           sf sgd source delta \
             --to HEAD \
             --from "origin/$TARGET_BRANCH" \
             --output . \
             --source-dir force-app \
             --generate-delta
+          
+          if [ ! -f "package/package.xml" ]; then
+            echo "No package.xml generated - no metadata changes detected"
+            exit 0
+          fi
+          echo "Generated package.xml contents:"
+          cat package/package.xml
 
       - name: Authenticate to Salesforce
         run: |
@@ -98,5 +106,11 @@ jobs:
           rm ./authfile
           
       - name: Deploy to validation org
+        if: hashFiles('package/package.xml') != ''
         run: |
-          sf project deploy validate --manifest package/package.xml --test-level RunLocalTests --target-org validation-org
+          echo "Starting deployment validation..."
+          sf project deploy validate \
+            --manifest package/package.xml \
+            --test-level RunLocalTests \
+            --target-org validation-org \
+            --verbose
