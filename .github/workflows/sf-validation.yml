@@ -276,51 +276,64 @@ jobs:
               if (deployResult?.result) {
                 const result = deployResult.result;
                 
-                if (result.details.componentFailures && result.details.componentFailures.length > 0) {
-                  comment += '<details><summary><b>🚫 Component Validation Failures</b></summary>\n\n';
-                  comment += '| Type | Component | Problem |\n';
-                  comment += '|------|-----------|----------|\n';
-                  result.details.componentFailures.forEach(failure => {
-                    comment += `| ${failure.componentType} | ${failure.fullName} | ${failure.problem} |\n`;
-                  });
-                  comment += '\n</details>\n\n';
-                }
-                
-                if (result.details.runTestResult?.failures && result.details.runTestResult.failures.length > 0) {
-                  comment += '<details><summary><b>❌ Test Failures</b></summary>\n\n';
-                  comment += '| Class | Method | Error |\n';
-                  comment += '|-------|--------|-------|\n';
-                  result.details.runTestResult.failures.forEach(failure => {
-                    comment += `| ${failure.name} | ${failure.methodName} | ${failure.message} |\n`;
-                  });
-                  comment += '\n';
-                  
-                  if (failure.stackTrace) {
-                    comment += '<details><summary>Stack Trace</summary>\n\n';
-                    comment += '```\n' + failure.stackTrace + '\n```\n';
-                    comment += '</details>\n\n';
-                  }
-                  comment += '</details>\n\n';
-                }
-                
-                // Test Coverage Summary
-                if (result.details.runTestResult?.codeCoverageWarnings) {
-                  comment += '<details><summary><b>⚠️ Coverage Warnings</b></summary>\n\n';
-                  result.details.runTestResult.codeCoverageWarnings.forEach(warning => {
-                    comment += `- ${warning.message}\n`;
-                  });
-                  comment += '\n</details>\n\n';
-                }
-                
-                // Deployment Info
-                comment += '<details><summary><b>🔍 Deployment Information</b></summary>\n\n';
+                // Always show deployment info first
+                comment += '<details><summary><b>🚀 Deployment Validation</b></summary>\n\n';
                 comment += `- **Status**: ${result.status}\n`;
                 comment += `- **Deploy ID**: \`${result.id}\`\n`;
                 comment += `- **Organization**: \`${result.deployedTo}\`\n`;
                 if (result.deployUrl) {
                   comment += `- **[View Deployment Details](${result.deployUrl})**\n`;
                 }
-                comment += '\n</details>\n\n';
+                
+                // Show number of components deployed
+                if (result.details?.componentSuccesses) {
+                  comment += `- **Components Processed**: ${result.details.componentSuccesses.length}\n`;
+                }
+                
+                // Show test results summary if available
+                if (result.details?.runTestResult) {
+                  const testResults = result.details.runTestResult;
+                  comment += `- **Tests Completed**: ${testResults.numTestsRun}\n`;
+                  comment += `- **Tests Failed**: ${testResults.numFailures}\n`;
+                  comment += `- **Total Test Time**: ${testResults.totalTime}s\n`;
+                }
+                comment += '\n';
+                
+                // Show failures if any
+                if (result.details?.componentFailures?.length > 0) {
+                  comment += '### 🚫 Component Validation Failures\n\n';
+                  comment += '| Type | Component | Problem |\n';
+                  comment += '|------|-----------|----------|\n';
+                  result.details.componentFailures.forEach(failure => {
+                    comment += `| ${failure.componentType} | ${failure.fullName} | ${failure.problem} |\n`;
+                  });
+                  comment += '\n';
+                }
+                
+                // Show test failures if any
+                if (result.details?.runTestResult?.failures?.length > 0) {
+                  comment += '### ❌ Test Failures\n\n';
+                  result.details.runTestResult.failures.forEach(failure => {
+                    comment += `#### ${failure.name}.${failure.methodName}\n`;
+                    comment += `**Error**: ${failure.message}\n\n`;
+                    if (failure.stackTrace) {
+                      comment += '<details><summary>Stack Trace</summary>\n\n';
+                      comment += '```\n' + failure.stackTrace + '\n```\n';
+                      comment += '</details>\n\n';
+                    }
+                  });
+                }
+                
+                // Show coverage warnings if any
+                if (result.details?.runTestResult?.codeCoverageWarnings?.length > 0) {
+                  comment += '### ⚠️ Coverage Warnings\n\n';
+                  result.details.runTestResult.codeCoverageWarnings.forEach(warning => {
+                    comment += `- ${warning.message}\n`;
+                  });
+                  comment += '\n';
+                }
+                
+                comment += '</details>\n\n';
               }
               
               comment += '</details>\n\n';
