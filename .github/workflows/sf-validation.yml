@@ -210,43 +210,79 @@ jobs:
           script: |
             const fs = require('fs');
             
-            let comment = '## Salesforce Validation Results\n\n';
+            // Helper function to create status badge
+            const getStatusBadge = (failed) => failed ? 
+              '![Failed](https://img.shields.io/badge/Failed-red?style=flat-square&logo=x)' : 
+              '![Passed](https://img.shields.io/badge/Passed-green?style=flat-square&logo=check)';
             
-            // ESLint Results
-            comment += '### ESLint Results\n```\n';
+            let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
+            
+            // Quick Summary at the top
+            comment += '### 📊 Summary\n\n';
+            comment += '| Check | Status | Details |\n';
+            comment += '|-------|--------|----------|\n';
+            
+            // ESLint Summary
+            const hasEslintIssues = process.env.ESLINT_FAILED === 'true';
+            let eslintOutput;
             try {
-              const eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
-              comment += eslintOutput || 'No issues found';
+              eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
             } catch (e) {
-              comment += 'No JavaScript files checked';
+              eslintOutput = 'No JavaScript files checked';
             }
-            comment += '\n```\n\n';
+            comment += `| ESLint | ${getStatusBadge(hasEslintIssues)} | ${hasEslintIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
             
-            // PMD Results
-            comment += '### PMD Analysis\n```\n';
+            // PMD Summary
+            const hasPmdIssues = process.env.PMD_FAILED === 'true';
+            let pmdOutput;
             try {
-              const pmdOutput = fs.readFileSync('pmd_report.txt', 'utf8').trim();
-              comment += pmdOutput || 'No issues found';
+              pmdOutput = fs.readFileSync('pmd_report.txt', 'utf8').trim();
             } catch (e) {
-              comment += 'No Apex files analyzed';
+              pmdOutput = 'No Apex files analyzed';
             }
-            comment += '\n```\n\n';
+            comment += `| PMD | ${getStatusBadge(hasPmdIssues)} | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
             
-            // Deployment Results
-            comment += '### Deployment Validation\n```\n';
+            // Deployment Summary
+            const hasDeployIssues = process.env.DEPLOY_FAILED === 'true';
+            let deployOutput;
             try {
-              const deployOutput = fs.readFileSync('deploy_report.txt', 'utf8').trim();
-              comment += deployOutput;
+              deployOutput = fs.readFileSync('deploy_report.txt', 'utf8').trim();
             } catch (e) {
-              comment += 'No deployment performed';
+              deployOutput = 'No deployment performed';
             }
-            comment += '\n```\n\n';
+            comment += `| Deployment | ${getStatusBadge(hasDeployIssues)} | ${hasDeployIssues ? '❌ Failed' : '✅ Ready'} |\n\n`;
             
-            // Summary
-            comment += '### Summary\n';
-            comment += `- ESLint: ${process.env.ESLINT_FAILED ? '❌' : '✅'}\n`;
-            comment += `- PMD: ${process.env.PMD_FAILED ? '❌' : '✅'}\n`;
-            comment += `- Deployment: ${process.env.DEPLOY_FAILED ? '❌' : '✅'}\n`;
+            // Detailed Results
+            if (hasEslintIssues || hasPmdIssues || hasDeployIssues) {
+              comment += '<details><summary><h3>📝 Detailed Results</h3></summary>\n\n';
+              
+              // ESLint Details
+              if (hasEslintIssues) {
+                comment += '<details><summary><b>🔍 ESLint Issues</b></summary>\n\n';
+                comment += '```\n' + eslintOutput + '\n```\n</details>\n\n';
+              }
+              
+              // PMD Details
+              if (hasPmdIssues) {
+                comment += '<details><summary><b>🔍 PMD Issues</b></summary>\n\n';
+                comment += '```\n' + pmdOutput + '\n```\n</details>\n\n';
+              }
+              
+              // Deployment Details
+              if (hasDeployIssues) {
+                comment += '<details><summary><b>🚀 Deployment Issues</b></summary>\n\n';
+                comment += '```\n' + deployOutput + '\n```\n</details>\n\n';
+              }
+              
+              comment += '</details>\n\n';
+            }
+            
+            // Final Status
+            const allPassed = !hasEslintIssues && !hasPmdIssues && !hasDeployIssues;
+            comment += '---\n';
+            comment += allPassed ? 
+              '✅ **All checks passed successfully!**\n' : 
+              '❌ **Some checks failed. Please review the details above.**\n';
             
             // Post comment
             const { issue: { number: issue_number }, repo: { owner, repo } } = context;
