@@ -255,7 +255,7 @@ jobs:
             // PMD Details
             if (hasPmdIssues) {
               comment += '<details><summary><b>🔍 PMD Issues</b></summary>\n\n';
-              comment += '```\n' + pmdOutput + '\n```\n</details>\n\n';
+              comment += '\n' + pmdOutput + '\n\n</details>\n\n';
             }
             
             // Deployment Details
