@@ -38,10 +38,7 @@ jobs:
         uses: tj-actions/changed-files@v42
         with:
           files: |
-            force-app/**/*.js
-            force-app/**/*.cls
-            force-app/**/*.trigger
-            force-app/**/*.page
+            force-app/**
 
       - name: Run ESLint
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -74,14 +71,17 @@ jobs:
           fi
 
       - name: Install Salesforce CLI
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           npm install --global @salesforce/cli
           
       - name: Install sfdx-git-delta
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           echo y | sf plugins install sfdx-git-delta
 
       - name: Generate delta package
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           TARGET_BRANCH=${{ github.base_ref }}
           echo "Comparing changes with target branch: $TARGET_BRANCH"
@@ -100,13 +100,14 @@ jobs:
           cat package/package.xml
 
       - name: Authenticate to Salesforce
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           echo "${{ secrets.SFDX_AUTH_URL }}" > ./authfile
           sf org login sfdx-url -f ./authfile -a validation-org
           rm ./authfile
           
       - name: Deploy to validation org
-        if: hashFiles('package/package.xml') != ''
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           echo "Starting deployment validation..."
           sf project deploy validate \
