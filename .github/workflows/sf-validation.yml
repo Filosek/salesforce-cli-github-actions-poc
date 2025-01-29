@@ -68,7 +68,10 @@ jobs:
           CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep "\.js$" | grep -v "meta\.xml$" || true)
           if [ ! -z "$CHANGED_JS_FILES" ]; then
             echo "Running ESLint on: $CHANGED_JS_FILES"
-            npx eslint $CHANGED_JS_FILES --format ./node_modules/eslint-formatter-pretty/index.js 2>&1 | tee eslint_report.txt
+            npx eslint $CHANGED_JS_FILES --format ./node_modules/eslint-formatter-pretty/index.js 2>&1 | tee eslint_report.txt || true
+            if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+              echo "ESLINT_FAILED=true" >> $GITHUB_ENV
+            fi
           else
             echo "No JS files to lint" > eslint_report.txt
           fi
@@ -109,6 +112,9 @@ jobs:
               -f text \
               --force-language apex \
               2>&1 | tee pmd_report.txt
+            if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+              echo "PMD_FAILED=true" >> $GITHUB_ENV
+            fi
           else
             echo "No Apex files to analyze" > pmd_report.txt
           fi
@@ -295,10 +301,10 @@ jobs:
               body: comment
             });
 
-      - name: Check for failures
+      - name: Check validation status
         if: always() && steps.changed-files.outputs.any_changed == 'true'
         run: |
           if [ "${{ env.DEPLOY_FAILED }}" = "true" ]; then
-            echo "Validation failed!"
+            echo "Deployment validation failed!"
             exit 1
           fi
