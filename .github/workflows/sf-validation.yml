@@ -21,15 +21,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - name: Install dependencies
-        run: |
-          if [ ! -f package-lock.json ]; then
-            npm install
-          else
-            npm ci
-          fi
+      - name: Install dependencies and create lock file
+        run: npm install
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Get changed files
         id: changed-files
