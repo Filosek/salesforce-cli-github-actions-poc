@@ -1,0 +1,90 @@
+name: Salesforce Validation
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'force-app/**'
+      - 'package.json'
+      - 'eslint.config.mjs'
+      - 'pmdRuleset.xml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v42
+        with:
+          files: |
+            force-app/**/*.js
+            force-app/**/*.cls
+            force-app/**/*.trigger
+            force-app/**/*.page
+
+      - name: Run ESLint
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.js$" || true)
+          if [ ! -z "$CHANGED_JS_FILES" ]; then
+            npx eslint $CHANGED_JS_FILES
+          fi
+
+      - name: Setup Java
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Run PMD
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          wget https://github.com/pmd/pmd/releases/download/pmd_releases%2F7.0.0/pmd-bin-7.0.0.zip
+          unzip pmd-bin-7.0.0.zip
+          CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.(cls|trigger|page)$" || true)
+          if [ ! -z "$CHANGED_APEX_FILES" ]; then
+            ./pmd-bin-7.0.0/bin/pmd check \
+              -d "$CHANGED_APEX_FILES" \
+              -R pmdRuleset.xml \
+              -f text \
+              -language apex \
+              -failOnViolation true
+          fi
+
+      - name: Install Salesforce CLI
+        run: |
+          wget https://developer.salesforce.com/media/salesforce-cli/sf/channels/stable/sf-linux-x64.tar.xz
+          mkdir -p $HOME/sf
+          tar xJf sf-linux-x64.tar.xz -C $HOME/sf --strip-components 1
+          echo "$HOME/sf/bin" >> $GITHUB_PATH
+          
+      - name: Authenticate to Salesforce
+        run: |
+          echo "${{ secrets.SFDX_AUTH_URL }}" > ./authfile
+          sf org login sfdx-url -f ./authfile -a validation-org
+          rm ./authfile
+
+      - name: Generate delta package
+        run: |
+          TARGET_BRANCH=${{ github.base_ref }}
+          echo "Generating delta package for changes from $TARGET_BRANCH"
+          sf project generate manifest --source-dir force-app/ --from "origin/$TARGET_BRANCH" --output .
+          
+      - name: Deploy to validation org
+        run: |
+          sf project deploy validate --manifest package.xml --test-level RunLocalTests
