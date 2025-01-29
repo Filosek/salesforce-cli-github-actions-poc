@@ -29,19 +29,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        id: npm-cache
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('package.json') }}
+          cache: 'npm'
 
       - name: Install dependencies
-        if: steps.npm-cache.outputs.cache-hit != 'true'
-        run: |
-          npm install
-          npm shrinkwrap  # Creates npm-shrinkwrap.json for future cache hits
+        run: npm ci
 
       - name: Get changed files
         id: changed-files
