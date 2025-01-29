@@ -99,4 +99,4 @@ jobs:
           
       - name: Deploy to validation org
         run: |
-          sf project deploy validate --manifest package/package.xml --test-level RunLocalTests
+          sf project deploy validate --manifest package/package.xml --test-level RunLocalTests --target-org validation-org
