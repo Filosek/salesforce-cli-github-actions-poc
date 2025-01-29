@@ -54,15 +54,29 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'maven'
+
+      - name: Cache PMD
+        if: steps.changed-files.outputs.any_changed == 'true'
+        id: cache-pmd
+        uses: actions/cache@v4
+        with:
+          path: pmd-bin-7.9.0
+          key: ${{ runner.os }}-pmd-7.9.0
+
+      - name: Download PMD
+        if: steps.changed-files.outputs.any_changed == 'true' && steps.cache-pmd.outputs.cache-hit != 'true'
+        run: |
+          wget https://github.com/pmd/pmd/releases/download/pmd_releases%2F7.9.0/pmd-dist-7.9.0-bin.zip
+          unzip pmd-dist-7.9.0-bin.zip
+          mv pmd-bin-7.9.0 pmd-bin
 
       - name: Run PMD
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          wget https://github.com/pmd/pmd/releases/download/pmd_releases%2F7.0.0/pmd-bin-7.0.0.zip
-          unzip pmd-bin-7.0.0.zip
           CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.(cls|trigger|page)$" || true)
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
-            ./pmd-bin-7.0.0/bin/pmd check \
+            ./pmd-bin/bin/pmd check \
               -d "$CHANGED_APEX_FILES" \
               -R pmdRuleset.xml \
               -f text \
