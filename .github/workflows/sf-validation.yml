@@ -52,10 +52,11 @@ jobs:
           CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.js$" || true)
           if [ ! -z "$CHANGED_JS_FILES" ]; then
             echo "Running ESLint on: $CHANGED_JS_FILES"
-            npx eslint $CHANGED_JS_FILES --format stylish > eslint_report.txt 2>&1 || {
+            if ! npx eslint $CHANGED_JS_FILES --format stylish > eslint_report.txt 2>&1; then
               echo "ESLINT_FAILED=true" >> $GITHUB_ENV
+              cat eslint_report.txt
               echo "ESLint found issues"
-            }
+            fi
           else
             echo "No JS files to lint" > eslint_report.txt
           fi
@@ -90,14 +91,15 @@ jobs:
           CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.(cls|trigger|page)$" || true)
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
             echo "Running PMD on: $CHANGED_APEX_FILES"
-            ./pmd-bin/bin/pmd check \
+            if ! ./pmd-bin/bin/pmd check \
               -d "$CHANGED_APEX_FILES" \
               -R pmdRuleset.xml \
               -f text \
-              -language apex > pmd_report.txt 2>&1 || {
-                echo "PMD_FAILED=true" >> $GITHUB_ENV
-                echo "PMD found issues"
-              }
+              -language apex > pmd_report.txt 2>&1; then
+              echo "PMD_FAILED=true" >> $GITHUB_ENV
+              cat pmd_report.txt
+              echo "PMD found issues"
+            fi
           else
             echo "No Apex files to analyze" > pmd_report.txt
           fi
@@ -208,10 +210,11 @@ jobs:
             });
 
       - name: Check for failures
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: always() && steps.changed-files.outputs.any_changed == 'true'
         run: |
-          if [ "${{ steps.eslint.outcome }}" == "failure" ] || \
-             [ "${{ steps.pmd.outcome }}" == "failure" ] || \
-             [ "${{ steps.deploy.outcome }}" == "failure" ]; then
+          if [ "${{ env.ESLINT_FAILED }}" = "true" ] || \
+             [ "${{ env.PMD_FAILED }}" = "true" ] || \
+             [ "${{ env.DEPLOY_FAILED }}" = "true" ]; then
+            echo "Validation failed!"
             exit 1
           fi
