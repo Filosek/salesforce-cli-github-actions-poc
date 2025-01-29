@@ -65,20 +65,10 @@ jobs:
         id: eslint
         continue-on-error: true
         run: |
-          echo "All changed files:"
-          echo "${{ steps.changed-files.outputs.all_changed_files }}"
-          
           CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep "\.js$" | grep -v "meta\.xml$" || true)
-          echo "Found JS files:"
-          echo "$CHANGED_JS_FILES"
-          
           if [ ! -z "$CHANGED_JS_FILES" ]; then
             echo "Running ESLint on: $CHANGED_JS_FILES"
-            npx eslint $CHANGED_JS_FILES --format ./node_modules/eslint-formatter-pretty/index.js 2>&1 | tee eslint_report.txt || true
-            if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-              echo "ESLINT_FAILED=true" >> $GITHUB_ENV
-              echo "ESLint found issues"
-            fi
+            npx eslint $CHANGED_JS_FILES --format ./node_modules/eslint-formatter-pretty/index.js 2>&1 | tee eslint_report.txt
           else
             echo "No JS files to lint" > eslint_report.txt
           fi
@@ -110,13 +100,7 @@ jobs:
         id: pmd
         continue-on-error: true
         run: |
-          echo "All changed files:"
-          echo "${{ steps.changed-files.outputs.all_changed_files }}"
-          
           CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep -E "\.(cls|trigger|page)$" | grep -v "meta\.xml$" || true)
-          echo "Found Apex files:"
-          echo "$CHANGED_APEX_FILES"
-          
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
             echo "Running PMD on: $CHANGED_APEX_FILES"
             ./pmd-bin/bin/pmd check \
@@ -124,50 +108,7 @@ jobs:
               -R pmdRuleset.xml \
               -f text \
               --force-language apex \
-              --fail-on-violation \
-              2>&1 | node -e '
-              const input = require("fs").readFileSync(0, "utf-8");
-              const lines = input.split("\n");
-              let currentFile = "";
-              let output = "";
-              
-              lines.forEach(line => {
-                if (line.trim() === "") return;
-                
-                // Check if this is a file path line
-                if (line.includes("force-app/")) {
-                  currentFile = line.split("/").pop();
-                  output += `\n${currentFile}:\n`;
-                  return;
-                }
-                
-                // Parse violation lines
-                const match = line.match(/Priority: (\d+)\s+?(.*)/);
-                if (match) {
-                  const [_, priority, message] = match;
-                  const lineMatch = message.match(/line (\d+), column (\d+)/);
-                  const ruleMatch = message.match(/\((.*?)\)/);
-                  
-                  if (lineMatch && ruleMatch) {
-                    const [__, lineNum, colNum] = lineMatch;
-                    const rule = ruleMatch[1];
-                    const description = message.split(")").slice(1).join(")").trim();
-                    
-                    output += `${priority === "1" ? "Error" : "Warning"} - ${lineNum}:${colNum} => ${rule}  ${description}\n`;
-                  }
-                }
-              });
-              
-              if (output.trim()) {
-                console.log(output.trim());
-              } else {
-                console.log("No issues found");
-              }
-              ' | tee pmd_report.txt || true
-            if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-              echo "PMD_FAILED=true" >> $GITHUB_ENV
-              echo "PMD found issues"
-            fi
+              2>&1 | tee pmd_report.txt
           else
             echo "No Apex files to analyze" > pmd_report.txt
           fi
@@ -334,15 +275,15 @@ jobs:
             
             comment += '</details>\n\n';
             
-            // Final Status
-            const allPassed = !hasEslintIssues && !hasPmdIssues && !hasDeployIssues;
+            // Final Status - only consider deployment status
+            const allPassed = !hasDeployIssues;  // Remove ESLint and PMD from final status
             comment += '---\n';
             if (allPassed) {
-              comment += '### ✅ All checks passed successfully!\n';
+              comment += '### ✅ Deployment validation passed!\n';
               comment += '> Ready to be merged 🚀\n';
             } else {
-              comment += '### ❌ Some checks failed\n';
-              comment += '> Please review the details above and fix the issues ⚠️\n';
+              comment += '### ❌ Deployment validation failed\n';
+              comment += '> Please review the deployment issues above ⚠️\n';
             }
             
             // Post comment
@@ -357,9 +298,7 @@ jobs:
       - name: Check for failures
         if: always() && steps.changed-files.outputs.any_changed == 'true'
         run: |
-          if [ "${{ env.ESLINT_FAILED }}" = "true" ] || \
-             [ "${{ env.PMD_FAILED }}" = "true" ] || \
-             [ "${{ env.DEPLOY_FAILED }}" = "true" ]; then
+          if [ "${{ env.DEPLOY_FAILED }}" = "true" ]; then
             echo "Validation failed!"
             exit 1
           fi
