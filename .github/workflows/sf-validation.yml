@@ -52,9 +52,9 @@ jobs:
           CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.js$" || true)
           if [ ! -z "$CHANGED_JS_FILES" ]; then
             echo "Running ESLint on: $CHANGED_JS_FILES"
-            if ! npx eslint $CHANGED_JS_FILES --format stylish > eslint_report.txt 2>&1; then
+            npx eslint $CHANGED_JS_FILES --format stylish 2>&1 | tee eslint_report.txt || true
+            if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               echo "ESLINT_FAILED=true" >> $GITHUB_ENV
-              cat eslint_report.txt
               echo "ESLint found issues"
             fi
           else
@@ -91,13 +91,13 @@ jobs:
           CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.(cls|trigger|page)$" || true)
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
             echo "Running PMD on: $CHANGED_APEX_FILES"
-            if ! ./pmd-bin/bin/pmd check \
+            ./pmd-bin/bin/pmd check \
               -d "$CHANGED_APEX_FILES" \
               -R pmdRuleset.xml \
               -f text \
-              -language apex > pmd_report.txt 2>&1; then
+              -language apex 2>&1 | tee pmd_report.txt || true
+            if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               echo "PMD_FAILED=true" >> $GITHUB_ENV
-              cat pmd_report.txt
               echo "PMD found issues"
             fi
           else
