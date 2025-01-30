@@ -405,11 +405,11 @@ jobs:
             
             comment += '---\n';
             if (allPassed) {
-              comment += '### ✅ Deployment validation passed!\n';
-              comment += '> Ready to be merged 🚀\n';
+              comment += '## ✅ Deployment validation passed!\n';
+              comment += 'Ready to be merged 🚀\n';
             } else {
-              comment += '### ❌ Deployment validation failed\n';
-              comment += '> Please review the deployment issues above ⚠️\n';
+              comment += '## ❌ Deployment validation failed 👀\n';
+              comment += 'Please review the deployment issues above ⚠️\n';
             }
             
             const { issue: { number: issue_number }, repo: { owner, repo } } = context;
