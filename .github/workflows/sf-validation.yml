@@ -65,10 +65,12 @@ jobs:
         id: eslint
         continue-on-error: true
         run: |
+          echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
           CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep "\.js$" | grep -v "meta\.xml$" || true)
+          echo "JS files to check: $CHANGED_JS_FILES"
           if [ ! -z "$CHANGED_JS_FILES" ]; then
             echo "Running ESLint on: $CHANGED_JS_FILES"
-            echo "$CHANGED_JS_FILES" | xargs npx eslint --format json | node -e '
+            npx eslint $CHANGED_JS_FILES --format json | node -e '
               const results = JSON.parse(require("fs").readFileSync(0, "utf-8"));
               
               const violations = results.flatMap(result => {
@@ -98,7 +100,6 @@ jobs:
             fi
           else
             echo "No JS files to lint" > eslint_report.txt
-          fi
 
       - name: Setup Java
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -127,11 +128,13 @@ jobs:
         id: pmd
         continue-on-error: true
         run: |
+          echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
           CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.(cls|trigger|page)$" | grep -v "meta\.xml$" || true)
+          echo "Apex files to check: $CHANGED_APEX_FILES"
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
             echo "Running PMD on: $CHANGED_APEX_FILES"
-            echo "$CHANGED_APEX_FILES" | tr ' ' ',' | xargs -I{} ./pmd-bin/bin/pmd check \
-              -d "{}" \
+            ./pmd-bin/bin/pmd check \
+              -d "$CHANGED_APEX_FILES" \
               -R pmdRuleset.xml \
               -f json \
               --force-language apex \
@@ -197,7 +200,6 @@ jobs:
             fi
           else
             echo "[]" > pmd_priorities.json
-          fi
 
       - name: Install sfdx-git-delta plugin
         if: steps.changed-files.outputs.any_changed == 'true'
