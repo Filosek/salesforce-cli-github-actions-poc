@@ -402,23 +402,23 @@ jobs:
               comment += `| PMD | ${pmdCritical} | ${pmdWarnings} | ${pmdCritical + pmdWarnings} |\n\n`;
             }
 
-            comment += '<details><summary><h3>📝 Detailed Results</h3></summary>\n\n';
+            comment += '## 📝 Detailed Results\n\n';
             
             if (hasEslintIssues && eslintOutput) {
-              comment += '<details><summary><b>🔍 ESLint Issues</b></summary>\n\n';
-              comment += eslintOutput + '\n</details>\n\n';
+              comment += '### 🔍 ESLint Issues\n\n';
+              comment += eslintOutput + '\n\n';
             }
             
             if (hasPmdIssues && pmdOutput) {
-              comment += '<details><summary><b>🔍 PMD Issues</b></summary>\n\n';
-              comment += pmdOutput + '\n</details>\n\n';
+              comment += '### 🔍 PMD Issues\n\n';
+              comment += pmdOutput + '\n\n';
             }
             
             if (deployResult) {
-              comment += '<details><summary><b>🚀 Deployment Validation</b></summary>\n\n';
+              comment += '### 🚀 Deployment Validation\n\n';
               
               if (hasDeployIssues) {
-                comment += '### ❌ Validation Errors\n\n';
+                comment += '#### ❌ Validation Errors\n\n';
                 
                 if (deployResult.message) {
                   comment += '| Error | Description |\n';
@@ -438,7 +438,7 @@ jobs:
                   });
                 }
               } else {
-                comment += '### ✅ Validation Succeeded\n\n';
+                comment += '#### ✅ Validation Succeeded\n\n';
               }
               
               comment += `- **Deploy ID**: \`${deployResult.result?.id || deployResult.data?.deployId || 'N/A'}\`\n`;
@@ -447,18 +447,16 @@ jobs:
                 comment += `- **Error Type**: ${deployResult.name}\n`;
               }
               
-              comment += '</details>\n\n';
+              comment += '\n';
             }
-            
-            comment += '</details>\n\n';
 
             comment += '---\n';
             if (!hasDeployIssues) {
               comment += '## ✅ Deployment validation passed!\n';
-              comment += ' Ready to be merged 🚀\n';
+              comment += 'Ready to be merged 🚀\n';
             } else {
               comment += '## ❌ Deployment validation failed 👀\n';
-              comment += ' Please review the deployment issues above ⚠️\n';
+              comment += 'Please review the deployment issues above ⚠️\n';
             }
 
             const { issue: { number: issue_number }, repo: { owner, repo } } = context;
