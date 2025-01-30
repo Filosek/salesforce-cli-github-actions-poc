@@ -288,8 +288,9 @@ jobs:
           DEPLOY_CMD="npx sf project deploy validate \
             --manifest package/package.xml \
             --pre-destructive-changes destructiveChanges/destructiveChangesPre.xml \
-            --post-destructive-changes destructiveChanges/destructiveChangesPost.xml" \
-            --target-org validation-org
+            --post-destructive-changes destructiveChanges/destructiveChangesPost.xml \
+            --target-org validation-org"
+          
           # Add test configuration if test classes are present
           if [ ! -z "${{ steps.test-classes.outputs.test-classes }}" ]; then
             DEPLOY_CMD="$DEPLOY_CMD \
