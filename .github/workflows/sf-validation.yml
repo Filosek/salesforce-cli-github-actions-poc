@@ -249,10 +249,7 @@ jobs:
               const input = require("fs").readFileSync(0, "utf8");
               const jsonStart = input.indexOf("{");
               const jsonContent = input.slice(jsonStart);
-              console.log(jsonContent);
-            ' > deploy_report.json 2>&1 || {
-              echo "DEPLOY_FAILED=true" >> $GITHUB_ENV
-            }
+            ' > deploy_report.json
 
       - name: Create PR Comment
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -285,7 +282,6 @@ jobs:
             }
             comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
             
-            const hasDeployIssues = process.env.DEPLOY_FAILED === 'true';
             let deployResult;
             try {
               const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
@@ -354,22 +350,23 @@ jobs:
               comment += '<details><summary><b>🔍 PMD Issues</b></summary>\n\n';
               comment += pmdOutput + '\n</details>\n\n';
             }
+
+            const hasDeployIssues = deployResult?.status === 1 || deployResult?.name === 'FailedValidationError';
+
+            core.exportVariable('DEPLOY_FAILED', hasDeployIssues);
             
-            // Deployment Details
             if (deployResult) {
               comment += '<details><summary><b>🚀 Deployment Validation</b></summary>\n\n';
+              comment += `- **Deploy ID**: \`${deployResult.data?.deployId || deployResult.id || 'N/A'}\`\n`;
+              comment += `- **Status**: Failed\n`;
+              if (deployResult.name) comment += `- **Error Type**: ${deployResult.name}\n`;
               
-              if (deployResult.status === 1 || deployResult.name === 'FailedValidationError') {
+              if (hasDeployIssues) {
                 comment += '### ❌ Validation Errors\n\n';
                 
                 if (deployResult.message) {
                   const errorMessage = deployResult.message.split('Due To:\n')[1]?.split('\n\n')[0] || deployResult.message;
                   const errors = errorMessage.split('\n').filter(line => line.trim());
-
-                  comment += '### 📋 Validation Information\n\n';
-                  comment += `- **Deploy ID**: \`${deployResult.data?.deployId || deployResult.id || 'N/A'}\`\n`;
-                  comment += `- **Status**: Failed\n`;
-                  if (deployResult.name) comment += `- **Error Type**: ${deployResult.name}\n`;
                   
                   errors.forEach(error => {
                     if (error.includes(' - ')) {
@@ -393,8 +390,7 @@ jobs:
             
             comment += '</details>\n\n';
             
-            const allPassed = !hasDeployIssues && 
-              (!deployResult || !(deployResult.status === 1 || deployResult.name === 'FailedValidationError'));
+            const allPassed = !hasDeployIssues
             
             comment += '---\n';
             if (allPassed) {
