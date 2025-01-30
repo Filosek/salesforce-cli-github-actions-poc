@@ -337,7 +337,7 @@ jobs:
               comment += '    title Issues Distribution\n';
               comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
               comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
-              comment += '    %%{init: {"pie": {"colorScheme": ["#ffff00", "#ff0000"]}} }%%\n';
+              comment += '    %%{init: {"pie": {"colorScheme": ["#ffff00", "#ff8800"]}} }%%\n';
               comment += '```\n\n';
               
               comment += '| Tool | Critical | Warnings | Total |\n';
