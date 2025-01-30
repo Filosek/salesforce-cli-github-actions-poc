@@ -263,6 +263,39 @@ jobs:
             const fs = require('fs');
             
             let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
+
+            comment += '### 📊 Summary\n\n';
+            comment += '| Check | Status |\n';
+            comment += '|-------|--------|\n';
+            
+            const hasEslintIssues = process.env.ESLINT_FAILED === 'true';
+            let eslintOutput;
+            try {
+              eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
+            } catch (e) {
+              eslintOutput = 'No JavaScript files checked';
+            }
+            comment += `| ESLint | ${hasEslintIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
+            
+            const hasPmdIssues = process.env.PMD_FAILED === 'true';
+            let pmdOutput;
+            try {
+              pmdOutput = fs.readFileSync('pmd_report.txt', 'utf8').trim();
+            } catch (e) {
+              pmdOutput = 'No Apex files analyzed';
+            }
+            comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
+            
+            const hasDeployIssues = process.env.DEPLOY_FAILED === 'true';
+            let deployResult;
+            try {
+              const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
+              deployResult = JSON.parse(deployContent);
+              const isError = deployResult.name === 'FailedValidationError';
+              comment += `| Deployment | ${isError ? '❌ Failed' : '✅ Ready'} |\n\n`;
+            } catch (e) {
+              comment += '| Deployment | ❌ Error parsing results |\n\n';
+            }
             
             let eslintCritical = 0;
             let eslintWarnings = 0;
@@ -294,10 +327,6 @@ jobs:
 
             const totalCritical = eslintCritical + pmdCritical;
             const totalWarnings = eslintWarnings + pmdWarnings;
-            
-            comment += '### 📊 Summary\n\n';
-            comment += '| Check | Status |\n';
-            comment += '|-------|--------|\n';
 
             if (totalCritical > 0 || totalWarnings > 0) {
               comment += '### 📊 Issues Severity\n\n';
@@ -312,35 +341,6 @@ jobs:
               comment += '|------|----------|----------|\n';
               comment += `| ESLint | ${eslintCritical} | ${eslintWarnings} |\n`;
               comment += `| PMD | ${pmdCritical} | ${pmdWarnings} |\n\n`;
-            }
-            
-            const hasEslintIssues = process.env.ESLINT_FAILED === 'true';
-            let eslintOutput;
-            try {
-              eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
-            } catch (e) {
-              eslintOutput = 'No JavaScript files checked';
-            }
-            comment += `| ESLint | ${hasEslintIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
-            
-            const hasPmdIssues = process.env.PMD_FAILED === 'true';
-            let pmdOutput;
-            try {
-              pmdOutput = fs.readFileSync('pmd_report.txt', 'utf8').trim();
-            } catch (e) {
-              pmdOutput = 'No Apex files analyzed';
-            }
-            comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
-            
-            const hasDeployIssues = process.env.DEPLOY_FAILED === 'true';
-            let deployResult;
-            try {
-              const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
-              deployResult = JSON.parse(deployContent);
-              const isError = deployResult.name === 'FailedValidationError';
-              comment += `| Deployment | ${isError ? '❌ Failed' : '✅ Ready'} |\n\n`;
-            } catch (e) {
-              comment += '| Deployment | ❌ Error parsing results |\n\n';
             }
             
             comment += '<details><summary><h3>📝 Detailed Results</h3></summary>\n\n';
