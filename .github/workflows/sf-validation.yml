@@ -245,7 +245,12 @@ jobs:
             --post-destructive-changes destructiveChanges/destructiveChangesPost.xml \
             --test-level RunLocalTests \
             --target-org validation-org \
-            --json > deploy_report.json 2>&1 || {
+            --json | node -e '
+              const input = require("fs").readFileSync(0, "utf8");
+              const jsonStart = input.indexOf("{");
+              const jsonContent = input.slice(jsonStart);
+              console.log(jsonContent);
+            ' > deploy_report.json 2>&1 || {
               echo "DEPLOY_FAILED=true" >> $GITHUB_ENV
             }
 
@@ -284,9 +289,7 @@ jobs:
             let deployResult;
             try {
               const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
-              console.log('Deploy content:', deployContent);  // Debug
               deployResult = JSON.parse(deployContent);
-              
               const isError = deployResult.status === 1 || deployResult.name === 'FailedValidationError';
               comment += `| Validation | ${isError ? '❌ Failed' : '✅ Ready'} |\n\n`;
             } catch (e) {
