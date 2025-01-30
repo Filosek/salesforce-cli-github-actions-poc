@@ -368,7 +368,7 @@ jobs:
                 comment += '### ❌ Validation Errors\n\n';
                 
                 if (deployResult.message) {
-                  comment += '| Error | Description |\n';
+                  comment += '| Component | Problem |\n';
                   comment += '|------|-------------|\n';
                   
                   const errorMessage = deployResult.message.split('Due To:\n')[1]?.split('\n\n')[0] || deployResult.message;
