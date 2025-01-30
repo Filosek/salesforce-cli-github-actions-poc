@@ -347,12 +347,12 @@ jobs:
             
             if (hasEslintIssues) {
               comment += '<details><summary><b>🔍 ESLint Issues</b></summary>\n\n';
-              comment += '\n' + eslintOutput + '\n\n</details>\n\n';
+              comment += eslintOutput + '\n</details>\n\n';
             }
             
             if (hasPmdIssues) {
               comment += '<details><summary><b>🔍 PMD Issues</b></summary>\n\n';
-              comment += '\n' + pmdOutput + '\n\n</details>\n\n';
+              comment += pmdOutput + '\n</details>\n\n';
             }
             
             if (deployResult) {
