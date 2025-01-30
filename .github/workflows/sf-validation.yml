@@ -363,9 +363,13 @@ jobs:
                 comment += '### ❌ Validation Errors\n\n';
                 
                 if (deployResult.message) {
-                  // Handle error format
                   const errorMessage = deployResult.message.split('Due To:\n')[1]?.split('\n\n')[0] || deployResult.message;
                   const errors = errorMessage.split('\n').filter(line => line.trim());
+
+                  comment += '### 📋 Validation Information\n\n';
+                  comment += `- **Deploy ID**: \`${deployResult.data?.deployId || deployResult.id || 'N/A'}\`\n`;
+                  comment += `- **Status**: Failed\n`;
+                  if (deployResult.name) comment += `- **Error Type**: ${deployResult.name}\n`;
                   
                   errors.forEach(error => {
                     if (error.includes(' - ')) {
@@ -376,18 +380,6 @@ jobs:
                     } else {
                       comment += `\`\`\`\n${error}\n\`\`\`\n\n`;
                     }
-                  });
-                }
-                
-                comment += '### 📋 Validation Information\n\n';
-                comment += `- **Deploy ID**: \`${deployResult.data?.deployId || deployResult.id || 'N/A'}\`\n`;
-                comment += `- **Status**: Failed\n`;
-                if (deployResult.name) comment += `- **Error Type**: ${deployResult.name}\n`;
-                
-                if (deployResult.warnings?.length > 0) {
-                  comment += '\n### ⚠️ Warnings\n\n';
-                  deployResult.warnings.forEach(warning => {
-                    comment += `- ${warning}\n`;
                   });
                 }
               } else {
