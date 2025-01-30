@@ -401,7 +401,9 @@ jobs:
             
             comment += '</details>\n\n';
             
-            const allPassed = !hasDeployIssues;  // Remove ESLint and PMD from final status
+            const allPassed = !hasDeployIssues && 
+              (!deployResult || !(deployResult.status === 1 || deployResult.name === 'FailedValidationError'));
+            
             comment += '---\n';
             if (allPassed) {
               comment += '### ✅ Deployment validation passed!\n';
