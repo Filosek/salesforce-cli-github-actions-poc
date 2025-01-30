@@ -9,7 +9,8 @@
     "eslint-formatter-pretty": "^6.0.1",
     "eslint-plugin-import": "^2.31.0",
     "globals": "^15.14.0",
-    "sfdx-git-delta": "^5.0.0"
+    "sfdx-git-delta": "^5.0.0",
+    "xml2js": "^0.6.2"
   },
   "engines": {
     "node": ">=20.0.0"

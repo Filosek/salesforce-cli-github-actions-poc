@@ -231,6 +231,60 @@ jobs:
           npx sf org login sfdx-url -f ./authfile -a validation-org
           rm ./authfile
           
+      - name: Generate test class list
+        if: steps.changed-files.outputs.any_changed == 'true'
+        id: test-classes
+        run: |
+          # Parse package.xml and generate test class list
+          node -e '
+            const fs = require("fs");
+            const xml2js = require("xml2js");
+            
+            // Read and parse files
+            const packageXml = fs.readFileSync("package/package.xml", "utf8");
+            const testMap = JSON.parse(fs.readFileSync("cicd/unitTestMap.json", "utf8"));
+            
+            // Parse XML
+            xml2js.parseString(packageXml, (err, result) => {
+              if (err) {
+                console.error("Error parsing package.xml:", err);
+                process.exit(1);
+              }
+              
+              // Find ApexClass types
+              const types = result.Package.types || [];
+              const apexClasses = types.find(t => t.name[0] === "ApexClass");
+              
+              if (!apexClasses || !apexClasses.members) {
+                console.log("::set-output name=test-classes::");
+                process.exit(0);
+              }
+              
+              // Process class names
+              const classNames = apexClasses.members.map(m => m[0]);
+              
+              // Split into test and non-test classes
+              const testClasses = new Set(
+                classNames.filter(name => name.includes("Test") || name.includes("Tests"))
+              );
+              
+              // Add mapped test classes
+              classNames.forEach(className => {
+                if (testMap[className]) {
+                  testMap[className].forEach(testClass => testClasses.add(testClass));
+                }
+              });
+              
+              // Output the test classes if any found
+              const testClassList = Array.from(testClasses);
+              if (testClassList.length > 0) {
+                console.log(`::set-output name=test-classes::${testClassList.join(" ")}`);
+              } else {
+                console.log("::set-output name=test-classes::");
+              }
+            });
+          '
+
       - name: Deploy to validation org
         if: steps.changed-files.outputs.any_changed == 'true'
         id: deploy
@@ -238,25 +292,34 @@ jobs:
         run: |
           echo "Starting deployment validation..."
           
-          npx sf project deploy validate \
+          # Build deploy command
+          DEPLOY_CMD="npx sf project deploy validate \
             --manifest package/package.xml \
             --pre-destructive-changes destructiveChanges/destructiveChangesPre.xml \
-            --post-destructive-changes destructiveChanges/destructiveChangesPost.xml \
-            --test-level RunLocalTests \
-            --target-org validation-org \
-            --json | node -e '
-              const input = require("fs").readFileSync(0, "utf8");
-              const jsonStart = input.indexOf("{");
-              const jsonContent = input.slice(jsonStart);
-              const result = JSON.parse(jsonContent);
-              
-              const hasDeployIssues = result.status === 1;
-              
-              const fs = require("fs");
-              fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_issues=${hasDeployIssues}\n`);
-              
-              console.log(jsonContent);
-            ' > deploy_report.json
+            --post-destructive-changes destructiveChanges/destructiveChangesPost.xml"
+          
+          # Add test configuration if test classes are present
+          if [ ! -z "${{ steps.test-classes.outputs.test-classes }}" ]; then
+            DEPLOY_CMD="$DEPLOY_CMD \
+              --test-level RunSpecifiedTests \
+              --tests ${{ steps.test-classes.outputs.test-classes }}"
+          else
+            DEPLOY_CMD="$DEPLOY_CMD --test-level RunLocalTests"
+          fi
+          
+          # Add json output and execute
+          $DEPLOY_CMD --json | node -e '
+            const input = require("fs").readFileSync(0, "utf8");
+            const jsonStart = input.indexOf("{");
+            const jsonContent = input.slice(jsonStart);
+            const result = JSON.parse(jsonContent);
+            
+            const hasDeployIssues = result.status === 1;
+            const fs = require("fs");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_issues=${hasDeployIssues}\n`);
+            
+            console.log(jsonContent);
+          ' > deploy_report.json
 
       - name: Create PR Comment
         if: steps.changed-files.outputs.any_changed == 'true'
