@@ -239,7 +239,6 @@ jobs:
         run: |
           echo "Starting deployment validation..."
           
-          # Single deployment with all changes
           npx sf project deploy validate \
             --manifest package/package.xml \
             --pre-destructive-changes destructiveChanges/destructiveChangesPre.xml \
@@ -248,12 +247,7 @@ jobs:
             --target-org validation-org \
             --json > deploy_report.json 2>&1 || {
               echo "DEPLOY_FAILED=true" >> $GITHUB_ENV
-              echo "Deployment validation failed"
             }
-          
-          # Debug output
-          echo "Deploy report content:"
-          cat deploy_report.json
 
       - name: Create PR Comment
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -290,11 +284,14 @@ jobs:
             let deployResult;
             try {
               const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
+              console.log('Deploy content:', deployContent);  // Debug
               deployResult = JSON.parse(deployContent);
-              const isError = deployResult.name === 'FailedValidationError';
-              comment += `| Deployment | ${isError ? '❌ Failed' : '✅ Ready'} |\n\n`;
+              
+              const isError = deployResult.status === 1 || deployResult.name === 'FailedValidationError';
+              comment += `| Validation | ${isError ? '❌ Failed' : '✅ Ready'} |\n\n`;
             } catch (e) {
-              comment += '| Deployment | ❌ Error parsing results |\n\n';
+              console.error('Error parsing deployment results:', e);
+              comment += '| Validation | ❌ Error parsing results |\n\n';
             }
             
             let eslintCritical = 0;
@@ -355,29 +352,34 @@ jobs:
               comment += pmdOutput + '\n</details>\n\n';
             }
             
+            // Deployment Details
             if (deployResult) {
               comment += '<details><summary><b>🚀 Deployment Validation</b></summary>\n\n';
               
-              if (deployResult.name === 'FailedValidationError') {
+              if (deployResult.status === 1 || deployResult.name === 'FailedValidationError') {
                 comment += '### ❌ Validation Errors\n\n';
                 
-                const errors = deployResult.message
-                  .split('Due To:\n')[1]
-                  .split('\n\n')[0]
-                  .split('\n')
-                  .filter(line => line.trim());
+                if (deployResult.message) {
+                  // Handle error format
+                  const errorMessage = deployResult.message.split('Due To:\n')[1]?.split('\n\n')[0] || deployResult.message;
+                  const errors = errorMessage.split('\n').filter(line => line.trim());
                   
-                errors.forEach(error => {
-                  const [component, ...messageParts] = error.split(' - ');
-                  const message = messageParts.join(' - ');
-                  comment += `**${component}**\n`;
-                  comment += `\`\`\`\n${message}\n\`\`\`\n\n`;
-                });
+                  errors.forEach(error => {
+                    if (error.includes(' - ')) {
+                      const [component, ...messageParts] = error.split(' - ');
+                      const message = messageParts.join(' - ');
+                      comment += `**${component}**\n`;
+                      comment += `\`\`\`\n${message}\n\`\`\`\n\n`;
+                    } else {
+                      comment += `\`\`\`\n${error}\n\`\`\`\n\n`;
+                    }
+                  });
+                }
                 
-                comment += '### 📋 Deployment Information\n\n';
-                comment += `- **Deploy ID**: \`${deployResult.data.deployId}\`\n`;
+                comment += '### 📋 Validation Information\n\n';
+                comment += `- **Deploy ID**: \`${deployResult.data?.deployId || deployResult.id || 'N/A'}\`\n`;
                 comment += `- **Status**: Failed\n`;
-                comment += `- **Error Type**: ${deployResult.name}\n`;
+                if (deployResult.name) comment += `- **Error Type**: ${deployResult.name}\n`;
                 
                 if (deployResult.warnings?.length > 0) {
                   comment += '\n### ⚠️ Warnings\n\n';
@@ -387,7 +389,7 @@ jobs:
                 }
               } else {
                 comment += '### ✅ Validation Succeeded\n\n';
-                comment += `- **Deploy ID**: \`${deployResult.result?.id || 'N/A'}\`\n`;
+                comment += `- **Deploy ID**: \`${deployResult.result?.id || deployResult.id || 'N/A'}\`\n`;
                 comment += `- **Status**: Success\n`;
               }
               
