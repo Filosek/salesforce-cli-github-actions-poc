@@ -142,9 +142,7 @@ jobs:
                   const jsonStart = input.indexOf("{");
                   const jsonPart = input.slice(jsonStart);
                   
-                  console.log("Filtered PMD output:", jsonPart);  // Debug
                   const result = JSON.parse(jsonPart);
-                  console.log("Parsed PMD result:", JSON.stringify(result, null, 2));  // Debug
                   
                   // Collect all violations
                   const violations = result.files.flatMap(file => {
@@ -158,32 +156,37 @@ jobs:
                     }));
                   });
                   
-                  console.log("Collected violations:", JSON.stringify(violations, null, 2));  // Debug
-                  
                   // Store priorities in a separate file for severity counting
                   const priorities = violations.map(v => v.priority);
-                  console.log("Priorities:", JSON.stringify(priorities));  // Debug
                   require("fs").writeFileSync("pmd_priorities.json", JSON.stringify(priorities));
                   
-                  // Always write the table headers
-                  console.log("| Class | Line | Rule | Description |");
-                  console.log("|-------|------|------|-------------|");
+                  // Create formatted output for the report
+                  let output = "";
                   
                   if (violations.length > 0) {
+                    output += "| Class | Line | Rule | Description |\n";
+                    output += "|-------|------|------|-------------|\n";
                     violations.forEach(v => {
-                      console.log(`| ${v.file} | ${v.line} | ${v.rule} | ${v.description} |`);
+                      output += `| ${v.file} | ${v.line} | ${v.rule} | ${v.description} |\n`;
                     });
-                  } else {
-                    console.log("| - | - | - | No issues found |");
                   }
+                  
+                  // Write only the formatted table to the report file
+                  require("fs").writeFileSync("pmd_report.txt", output);
+                  
+                  // Also print to console for logging
+                  console.log(output || "No PMD issues found");
+                  
                 } catch (e) {
                   console.error("Error processing PMD output:", e);
                   require("fs").writeFileSync("pmd_priorities.json", "[]");
-                  console.log("| Class | Line | Rule | Description |");
-                  console.log("|-------|------|------|-------------|");
-                  console.log("| - | - | - | Error processing PMD output |");
+                  const errorOutput = "| Class | Line | Rule | Description |\n" +
+                                   "|-------|------|------|-------------|\n" +
+                                   "| - | - | - | Error processing PMD output |\n";
+                  require("fs").writeFileSync("pmd_report.txt", errorOutput);
+                  console.log(errorOutput);
                 }
-              ' | tee pmd_report.txt || true
+              ' || true
             if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               echo "PMD_FAILED=true" >> $GITHUB_ENV
             fi
@@ -256,13 +259,13 @@ jobs:
             let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
             
             // Parse ESLint and PMD results for severity counts
-            console.log("Starting severity counts calculation");  // Debug
+            console.log("Starting severity counts calculation");
             
             let eslintCritical = 0;
             let eslintWarnings = 0;
             try {
               const eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
-              console.log("ESLint output:", eslintOutput);  // Debug
+              console.log("ESLint output:", eslintOutput);
               if (eslintOutput !== 'No JS files to lint' && eslintOutput !== 'No ESLint issues found') {
                 const lines = eslintOutput.split('\n');
                 lines.slice(2, -2).forEach(line => {
@@ -273,7 +276,7 @@ jobs:
                   }
                 });
               }
-              console.log("ESLint counts:", { eslintCritical, eslintWarnings });  // Debug
+              console.log("ESLint counts:", { eslintCritical, eslintWarnings });
             } catch (e) {
               console.error('Error parsing ESLint output:', e);
             }
@@ -301,7 +304,7 @@ jobs:
               comment += '    title Issues Distribution\n';
               comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
               comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
-              comment += '    %%{init: {"pie": {"colorScheme": ["#ff0000", "#ffa500"]}} }%%\n';
+              comment += '    %%{init: {"pie": {"colorScheme": ["#ff0000", "#ffff00"]}} }%%\n';
               comment += '```\n\n';
               
               comment += '| Tool | Critical | Warnings |\n';
