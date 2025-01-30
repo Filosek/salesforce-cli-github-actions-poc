@@ -249,6 +249,11 @@ jobs:
               const input = require("fs").readFileSync(0, "utf8");
               const jsonStart = input.indexOf("{");
               const jsonContent = input.slice(jsonStart);
+              const result = JSON.parse(jsonContent);
+              
+              const hasDeployIssues = result.status === 1;
+              
+              console.log(jsonContent);
             ' > deploy_report.json
 
       - name: Create PR Comment
@@ -282,12 +287,13 @@ jobs:
             }
             comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
             
+            // Use deploy status from the deploy step
+            const hasDeployIssues = ${{ steps.deploy.outputs.has_issues }} === 'true';
             let deployResult;
             try {
               const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
               deployResult = JSON.parse(deployContent);
-              const isError = deployResult.status === 1 || deployResult.name === 'FailedValidationError';
-              comment += `| Validation | ${isError ? '❌ Failed' : '✅ Ready'} |\n\n`;
+              comment += `| Validation | ${hasDeployIssues ? '❌ Failed' : '✅ Ready'} |\n\n`;
             } catch (e) {
               console.error('Error parsing deployment results:', e);
               comment += '| Validation | ❌ Error parsing results |\n\n';
@@ -351,10 +357,6 @@ jobs:
               comment += pmdOutput + '\n</details>\n\n';
             }
 
-            const hasDeployIssues = deployResult?.status === 1 || deployResult?.name === 'FailedValidationError';
-
-            core.exportVariable('DEPLOY_FAILED', hasDeployIssues);
-            
             if (deployResult) {
               comment += '<details><summary><b>🚀 Deployment Validation</b></summary>\n\n';
               comment += `- **Deploy ID**: \`${deployResult.data?.deployId || deployResult.id || 'N/A'}\`\n`;
@@ -379,6 +381,13 @@ jobs:
                     }
                   });
                 }
+                
+                if (deployResult.warnings?.length > 0) {
+                  comment += '\n### ⚠️ Warnings\n\n';
+                  deployResult.warnings.forEach(warning => {
+                    comment += `- ${warning}\n`;
+                  });
+                }
               } else {
                 comment += '### ✅ Validation Succeeded\n\n';
                 comment += `- **Deploy ID**: \`${deployResult.result?.id || deployResult.id || 'N/A'}\`\n`;
@@ -390,7 +399,7 @@ jobs:
             
             comment += '</details>\n\n';
             
-            const allPassed = !hasDeployIssues
+            const allPassed = !hasDeployIssues;
             
             comment += '---\n';
             if (allPassed) {
@@ -412,7 +421,7 @@ jobs:
       - name: Check validation status
         if: always() && steps.changed-files.outputs.any_changed == 'true'
         run: |
-          if [ "${{ env.DEPLOY_FAILED }}" = "true" ]; then
+          if [ "${{ steps.deploy.outputs.has_issues }}" = "true" ]; then
             echo "Deployment validation failed!"
             exit 1
           fi
