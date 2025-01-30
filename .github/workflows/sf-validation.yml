@@ -262,7 +262,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const hasDeployIssues = ${{ steps.deploy.outputs.has_issues || 'false' }};
+            const hasDeployIssues = '${{ steps.deploy.outputs.has_issues }}' === 'true';
             
             let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
 
@@ -288,8 +288,6 @@ jobs:
             }
             comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
             
-            // Use deploy status from the deploy step
-            const hasDeployIssues = '${{ steps.deploy.outputs.has_issues }}' === 'true';
             let deployResult;
             try {
               const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
