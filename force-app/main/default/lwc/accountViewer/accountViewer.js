@@ -4,6 +4,6 @@ export default class AccountViewer extends LightningElement {
     @api recordId;
 
     connectedCallback() {
-        console.log('xxx');
+        console.log('xxx')
     }
 }
