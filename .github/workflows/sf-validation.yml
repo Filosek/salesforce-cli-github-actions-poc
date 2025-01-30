@@ -89,7 +89,6 @@ jobs:
                 violations.forEach(v => {
                   console.log(`| ${v.file} | ${v.line} | ${v.column} | ${v.severity} | ${v.rule} | ${v.description} |`);
                 });
-                console.log(`\n✖ ${violations.length} ${violations.length === 1 ? "problem" : "problems"}`);
               } else {
                 console.log("No ESLint issues found");
               }
@@ -341,10 +340,10 @@ jobs:
               comment += '    %%{init: {"pie": {"colorScheme": ["#ffff00", "#ff0000"]}} }%%\n';
               comment += '```\n\n';
               
-              comment += '| Tool | Critical | Warnings |\n';
-              comment += '|------|----------|----------|\n';
-              comment += `| ESLint | ${eslintCritical} | ${eslintWarnings} |\n`;
-              comment += `| PMD | ${pmdCritical} | ${pmdWarnings} |\n\n`;
+              comment += '| Tool | Critical | Warnings | Total |\n';
+              comment += '|------|----------|----------|--------|\n';
+              comment += `| ESLint | ${eslintCritical} | ${eslintWarnings} | ${eslintCritical + eslintWarnings} |\n`;
+              comment += `| PMD | ${pmdCritical} | ${pmdWarnings} | ${pmdCritical + pmdWarnings} |\n\n`;
             }
             
             comment += '<details><summary><h3>📝 Detailed Results</h3></summary>\n\n';
@@ -369,6 +368,9 @@ jobs:
                 comment += '### ❌ Validation Errors\n\n';
                 
                 if (deployResult.message) {
+                  comment += '| Error | Description |\n';
+                  comment += '|------|-------------|\n';
+                  
                   const errorMessage = deployResult.message.split('Due To:\n')[1]?.split('\n\n')[0] || deployResult.message;
                   const errors = errorMessage.split('\n').filter(line => line.trim());
                   
@@ -376,12 +378,12 @@ jobs:
                     if (error.includes(' - ')) {
                       const [component, ...messageParts] = error.split(' - ');
                       const message = messageParts.join(' - ');
-                      comment += `**${component}**\n`;
-                      comment += `\`\`\`\n${message}\n\`\`\`\n\n`;
+                      comment += `| ${component} | ${message} |\n`;
                     } else {
-                      comment += `\`\`\`\n${error}\n\`\`\`\n\n`;
+                      comment += `| Error | ${error} |\n`;
                     }
                   });
+                  comment += '\n';
                 }
                 
                 if (deployResult.warnings?.length > 0) {
