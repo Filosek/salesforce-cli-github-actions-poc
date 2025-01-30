@@ -77,16 +77,17 @@ jobs:
                   file: fileName,
                   line: msg.line,
                   column: msg.column,
+                  severity: msg.severity === 2 ? "Critical" : "Warning",
                   rule: msg.ruleId,
                   description: msg.message
                 }));
               });
               
               if (violations.length > 0) {
-                console.log("| File | Line | Column | Rule | Description |");
-                console.log("|------|------|--------|------|-------------|");
+                console.log("| File | Line | Column | Severity | Rule | Description |");
+                console.log("|------|------|--------|----------|------|-------------|");
                 violations.forEach(v => {
-                  console.log(`| ${v.file} | ${v.line} | ${v.column} | ${v.rule} | ${v.description} |`);
+                  console.log(`| ${v.file} | ${v.line} | ${v.column} | ${v.severity} | ${v.rule} | ${v.description} |`);
                 });
                 console.log(`\n✖ ${violations.length} ${violations.length === 1 ? "problem" : "problems"}`);
               } else {
@@ -138,11 +139,15 @@ jobs:
               2>&1 | node -e '
                 const input = require("fs").readFileSync(0, "utf-8");
                 try {
-                  // Filter out warning lines and get only the JSON part
                   const jsonStart = input.indexOf("{");
                   const jsonPart = input.slice(jsonStart);
                   
                   const result = JSON.parse(jsonPart);
+                  
+                  // Helper function to get severity from priority
+                  const getSeverity = (priority) => {
+                    return priority <= 2 ? "Critical" : "Warning";
+                  };
                   
                   // Collect all violations
                   const violations = result.files.flatMap(file => {
@@ -150,6 +155,7 @@ jobs:
                     return file.violations.map(v => ({
                       file: fileName,
                       line: v.beginline,
+                      severity: getSeverity(v.priority),
                       rule: v.rule,
                       description: v.description,
                       priority: v.priority
@@ -164,10 +170,10 @@ jobs:
                   let output = "";
                   
                   if (violations.length > 0) {
-                    output += "| Class | Line | Rule | Description |\n";
-                    output += "|-------|------|------|-------------|\n";
+                    output += "| Class | Line | Severity | Rule | Description |\n";
+                    output += "|-------|------|----------|------|-------------|\n";
                     violations.forEach(v => {
-                      output += `| ${v.file} | ${v.line} | ${v.rule} | ${v.description} |\n`;
+                      output += `| ${v.file} | ${v.line} | ${v.severity} | ${v.rule} | ${v.description} |\n`;
                     });
                   }
                   
@@ -180,9 +186,9 @@ jobs:
                 } catch (e) {
                   console.error("Error processing PMD output:", e);
                   require("fs").writeFileSync("pmd_priorities.json", "[]");
-                  const errorOutput = "| Class | Line | Rule | Description |\n" +
-                                   "|-------|------|------|-------------|\n" +
-                                   "| - | - | - | Error processing PMD output |\n";
+                  const errorOutput = "| Class | Line | Severity | Rule | Description |\n" +
+                                   "|-------|------|----------|------|-------------|\n" +
+                                   "| - | - | - | - | Error processing PMD output |\n";
                   require("fs").writeFileSync("pmd_report.txt", errorOutput);
                   console.log(errorOutput);
                 }
@@ -258,25 +264,20 @@ jobs:
             
             let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
             
-            // Parse ESLint and PMD results for severity counts
-            console.log("Starting severity counts calculation");
-            
             let eslintCritical = 0;
             let eslintWarnings = 0;
             try {
               const eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
-              console.log("ESLint output:", eslintOutput);
               if (eslintOutput !== 'No JS files to lint' && eslintOutput !== 'No ESLint issues found') {
                 const lines = eslintOutput.split('\n');
                 lines.slice(2, -2).forEach(line => {
                   const parts = line.split('|').map(p => p.trim());
-                  if (parts.length >= 5) {
-                    if (parts[4].startsWith('error:')) eslintCritical++;
-                    if (parts[4].startsWith('warning:')) eslintWarnings++;
+                  if (parts.length >= 6) {
+                    if (parts[4] === 'Critical') eslintCritical++;
+                    if (parts[4] === 'Warning') eslintWarnings++;
                   }
                 });
               }
-              console.log("ESLint counts:", { eslintCritical, eslintWarnings });
             } catch (e) {
               console.error('Error parsing ESLint output:', e);
             }
@@ -285,26 +286,26 @@ jobs:
             let pmdWarnings = 0;
             try {
               const pmdPriorities = JSON.parse(fs.readFileSync('pmd_priorities.json', 'utf8'));
-              console.log("PMD priorities:", pmdPriorities);  // Debug
               pmdCritical = pmdPriorities.filter(p => p <= 2).length;
               pmdWarnings = pmdPriorities.filter(p => p > 2).length;
-              console.log("PMD counts:", { pmdCritical, pmdWarnings });  // Debug
             } catch (e) {
               console.error('Error parsing PMD priorities:', e);
             }
 
             const totalCritical = eslintCritical + pmdCritical;
             const totalWarnings = eslintWarnings + pmdWarnings;
-            console.log("Total counts:", { totalCritical, totalWarnings });  // Debug
             
-            // Add severity summary diagram - moved before the main summary
+            comment += '### 📊 Summary\n\n';
+            comment += '| Check | Status |\n';
+            comment += '|-------|--------|\n';
+
             if (totalCritical > 0 || totalWarnings > 0) {
               comment += '### 📊 Issues Severity\n\n';
               comment += '```mermaid\npie\n';
               comment += '    title Issues Distribution\n';
-              comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
               comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
-              comment += '    %%{init: {"pie": {"colorScheme": ["#ff0000", "#ffff00"]}} }%%\n';
+              comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
+              comment += '    %%{init: {"pie": {"colorScheme": ["#ffff00", "#ff0000"]}} }%%\n';
               comment += '```\n\n';
               
               comment += '| Tool | Critical | Warnings |\n';
@@ -313,12 +314,6 @@ jobs:
               comment += `| PMD | ${pmdCritical} | ${pmdWarnings} |\n\n`;
             }
             
-            // Quick Summary at the top
-            comment += '### 📊 Summary\n\n';
-            comment += '| Check | Status |\n';
-            comment += '|-------|--------|\n';
-            
-            // ESLint Summary
             const hasEslintIssues = process.env.ESLINT_FAILED === 'true';
             let eslintOutput;
             try {
@@ -328,7 +323,6 @@ jobs:
             }
             comment += `| ESLint | ${hasEslintIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
             
-            // PMD Summary
             const hasPmdIssues = process.env.PMD_FAILED === 'true';
             let pmdOutput;
             try {
@@ -338,7 +332,6 @@ jobs:
             }
             comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
             
-            // Deployment Summary
             const hasDeployIssues = process.env.DEPLOY_FAILED === 'true';
             let deployResult;
             try {
@@ -350,30 +343,24 @@ jobs:
               comment += '| Deployment | ❌ Error parsing results |\n\n';
             }
             
-            // Detailed Results
             comment += '<details><summary><h3>📝 Detailed Results</h3></summary>\n\n';
             
-            // ESLint Details
             if (hasEslintIssues) {
               comment += '<details><summary><b>🔍 ESLint Issues</b></summary>\n\n';
               comment += '\n' + eslintOutput + '\n\n</details>\n\n';
             }
             
-            // PMD Details
             if (hasPmdIssues) {
               comment += '<details><summary><b>🔍 PMD Issues</b></summary>\n\n';
               comment += '\n' + pmdOutput + '\n\n</details>\n\n';
             }
             
-            // Deployment Details
             if (deployResult) {
               comment += '<details><summary><b>🚀 Deployment Validation</b></summary>\n\n';
               
               if (deployResult.name === 'FailedValidationError') {
-                // Format validation error
                 comment += '### ❌ Validation Errors\n\n';
                 
-                // Extract component errors from message
                 const errors = deployResult.message
                   .split('Due To:\n')[1]
                   .split('\n\n')[0]
@@ -387,7 +374,6 @@ jobs:
                   comment += `\`\`\`\n${message}\n\`\`\`\n\n`;
                 });
                 
-                // Deployment Info
                 comment += '### 📋 Deployment Information\n\n';
                 comment += `- **Deploy ID**: \`${deployResult.data.deployId}\`\n`;
                 comment += `- **Status**: Failed\n`;
@@ -400,7 +386,6 @@ jobs:
                   });
                 }
               } else {
-                // Handle successful validation
                 comment += '### ✅ Validation Succeeded\n\n';
                 comment += `- **Deploy ID**: \`${deployResult.result?.id || 'N/A'}\`\n`;
                 comment += `- **Status**: Success\n`;
@@ -411,7 +396,6 @@ jobs:
             
             comment += '</details>\n\n';
             
-            // Final Status - only consider deployment status
             const allPassed = !hasDeployIssues;  // Remove ESLint and PMD from final status
             comment += '---\n';
             if (allPassed) {
@@ -422,7 +406,6 @@ jobs:
               comment += '> Please review the deployment issues above ⚠️\n';
             }
             
-            // Post comment
             const { issue: { number: issue_number }, repo: { owner, repo } } = context;
             await github.rest.issues.createComment({
               owner,
