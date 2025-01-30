@@ -306,9 +306,9 @@ jobs:
               const eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
               if (eslintOutput !== 'No JS files to lint' && eslintOutput !== 'No ESLint issues found') {
                 const lines = eslintOutput.split('\n');
-                lines.slice(2, -2).forEach(line => {
+                lines.slice(2).forEach(line => {
                   const parts = line.split('|').map(p => p.trim());
-                  if (parts.length >= 6) {
+                  if (parts.length >= 6) {  // Check we have enough columns
                     if (parts[4] === 'Critical') eslintCritical++;
                     if (parts[4] === 'Warning') eslintWarnings++;
                   }
