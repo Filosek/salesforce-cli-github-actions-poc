@@ -253,8 +253,10 @@ jobs:
               
               const hasDeployIssues = result.status === 1;
               
+              const fs = require('fs');
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_issues=${hasDeployIssues}\n`);
+              
               console.log(jsonContent);
-              console.log(`has_issues=${hasDeployIssues}`) >> $GITHUB_OUTPUT;
             ' > deploy_report.json
 
       - name: Create PR Comment
