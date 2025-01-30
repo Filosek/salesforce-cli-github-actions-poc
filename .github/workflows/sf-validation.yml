@@ -346,20 +346,20 @@ jobs:
               comment += `| PMD | ${pmdCritical} | ${pmdWarnings} | ${pmdCritical + pmdWarnings} |\n\n`;
             }
             
-            comment += '<details><summary><h3>📝 Detailed Results</h3></summary>\n\n';
+            comment += '## 📝 Detailed Results';
             
             if (hasEslintIssues) {
-              comment += '<details><summary><b>🔍 ESLint Issues</b></summary>\n\n';
-              comment += eslintOutput + '\n</details>\n\n';
+              comment += '### 🔍 ESLint Issues';
+              comment += eslintOutput + '\n\n';
             }
             
             if (hasPmdIssues) {
-              comment += '<details><summary><b>🔍 PMD Issues</b></summary>\n\n';
-              comment += pmdOutput + '\n</details>\n\n';
+              comment += '### 🔍 PMD Issues';
+              comment += pmdOutput + '\n\n';
             }
 
             if (deployResult) {
-              comment += '<details><summary><b>🚀 Deployment Validation</b></summary>\n\n';
+              comment += '### 🚀 Deployment Validation';
               comment += `- **Deploy ID**: \`${deployResult.data?.deployId || deployResult.id || 'N/A'}\`\n`;
               comment += `- **Status**: Failed\n`;
               if (deployResult.name) comment += `- **Error Type**: ${deployResult.name}\n`;
@@ -398,10 +398,8 @@ jobs:
                 comment += `- **Status**: Success\n`;
               }
               
-              comment += '</details>\n\n';
+              comment += '\n\n';
             }
-            
-            comment += '</details>\n\n';
             
             const allPassed = !hasDeployIssues;
             
