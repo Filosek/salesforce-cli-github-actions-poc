@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomLabels xmlns="http://soap.sforce.com/2006/04/metadata">
     <labels>
-        <fullName>Bad_Label_Cause_It_Is_Bad_And_Should_Be_Removed_And_Replaced_With_A_Good_One_Really_Good_One</fullName>
+        <fullName>Good_Label</fullName>
         <language>en_US</language>
         <protected>false</protected>
-        <shortDescription>Bad Label</shortDescription>
-        <value>Bad Label</value>
+        <shortDescription>Test Label</shortDescription>
+        <value>Test Label</value>
     </labels>
 </CustomLabels>
