@@ -254,6 +254,7 @@ jobs:
               const hasDeployIssues = result.status === 1;
               
               console.log(jsonContent);
+              console.log(`has_issues=${hasDeployIssues}`) >> $GITHUB_OUTPUT;
             ' > deploy_report.json
 
       - name: Create PR Comment
