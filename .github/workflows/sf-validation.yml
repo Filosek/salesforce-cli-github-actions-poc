@@ -320,51 +320,19 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const hasDeployIssues = '${{ steps.deploy.outputs.has_issues }}' === 'true';
             
             let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
-
-            comment += '### 📊 Summary\n\n';
-            comment += '| Check | Status |\n';
-            comment += '|-------|--------|\n';
-            
-            const hasEslintIssues = process.env.ESLINT_FAILED === 'true';
-            let eslintOutput;
-            try {
-              eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
-            } catch (e) {
-              eslintOutput = 'No JavaScript files checked';
-            }
-            comment += `| ESLint | ${hasEslintIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
-            
-            const hasPmdIssues = process.env.PMD_FAILED === 'true';
-            let pmdOutput;
-            try {
-              pmdOutput = fs.readFileSync('pmd_report.txt', 'utf8').trim();
-            } catch (e) {
-              pmdOutput = 'No Apex files analyzed';
-            }
-            comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
-            
-            let deployResult;
-            try {
-              const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
-              deployResult = JSON.parse(deployContent);
-              comment += `| Validation | ${hasDeployIssues ? '❌ Failed' : '✅ Ready'} |\n\n`;
-            } catch (e) {
-              console.error('Error parsing deployment results:', e);
-              comment += '| Validation | ❌ Error parsing results |\n\n';
-            }
             
             let eslintCritical = 0;
             let eslintWarnings = 0;
+            let eslintOutput = '';
             try {
-              const eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
+              eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
               if (eslintOutput !== 'No JS files to lint' && eslintOutput !== 'No ESLint issues found') {
                 const lines = eslintOutput.split('\n');
                 lines.slice(2).forEach(line => {
                   const parts = line.split('|').map(p => p.trim());
-                  if (parts.length >= 6) {  // Check we have enough columns
+                  if (parts.length >= 6) {
                     if (parts[4] === 'Critical') eslintCritical++;
                     if (parts[4] === 'Warning') eslintWarnings++;
                   }
@@ -376,24 +344,56 @@ jobs:
 
             let pmdCritical = 0;
             let pmdWarnings = 0;
+            let pmdOutput = '';
             try {
-              const pmdPriorities = JSON.parse(fs.readFileSync('pmd_priorities.json', 'utf8'));
-              pmdCritical = pmdPriorities.filter(p => p <= 2).length;
-              pmdWarnings = pmdPriorities.filter(p => p > 2).length;
+              pmdOutput = fs.readFileSync('pmd_report.txt', 'utf8').trim();
+              if (pmdOutput !== 'No Apex files to analyze' && pmdOutput !== 'No PMD issues found') {
+                const lines = pmdOutput.split('\n');
+                lines.slice(2).forEach(line => {
+                  const parts = line.split('|').map(p => p.trim());
+                  if (parts.length >= 5) {
+                    if (parts[2] === 'Critical') pmdCritical++;
+                    if (parts[2] === 'Warning') pmdWarnings++;
+                  }
+                });
+              }
             } catch (e) {
-              console.error('Error parsing PMD priorities:', e);
+              console.error('Error parsing PMD output:', e);
+            }
+
+            comment += '### 📊 Summary\n\n';
+            comment += '| Check | Status |\n';
+            comment += '|-------|--------|\n';
+            const hasEslintIssues = eslintCritical + eslintWarnings > 0;
+            const hasPmdIssues = pmdCritical + pmdWarnings > 0;
+            comment += `| ESLint | ${hasEslintIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
+            comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
+
+            const hasDeployIssues = '${{ steps.deploy.outputs.has_issues }}' === 'true';
+            let deployResult;
+            try {
+              const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
+              deployResult = JSON.parse(deployContent);
+              comment += `| Validation | ${hasDeployIssues ? '❌ Failed' : '✅ Ready'} |\n\n`;
+            } catch (e) {
+              console.error('Error parsing deployment results:', e);
+              comment += '| Validation | ❌ Error parsing results |\n\n';
             }
 
             const totalCritical = eslintCritical + pmdCritical;
             const totalWarnings = eslintWarnings + pmdWarnings;
-
+            
             if (totalCritical > 0 || totalWarnings > 0) {
               comment += '### 📊 Issues Severity\n\n';
               comment += '```mermaid\npie\n';
               comment += '    title Issues Distribution\n';
-              comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
-              comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
-              comment += '    %%{init: {"pie": {"colorScheme": ["#ffff00", "#ff8800"]}} }%%\n';
+              if (totalCritical > 0) {
+                comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
+              }
+              if (totalWarnings > 0) {
+                comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
+              }
+              comment += '    %%{init: {"pie": {"colorScheme": ["#ff0000", "#ffa500"]}} }%%\n';
               comment += '```\n\n';
               
               comment += '| Tool | Critical | Warnings | Total |\n';
@@ -401,30 +401,27 @@ jobs:
               comment += `| ESLint | ${eslintCritical} | ${eslintWarnings} | ${eslintCritical + eslintWarnings} |\n`;
               comment += `| PMD | ${pmdCritical} | ${pmdWarnings} | ${pmdCritical + pmdWarnings} |\n\n`;
             }
-            
-            comment += '## 📝 Detailed Results \n\n';
-            
-            if (hasEslintIssues) {
-              comment += '### 🔍 ESLint Issues \n\n';
-              comment += eslintOutput + '\n\n';
-            }
-            
-            if (hasPmdIssues) {
-              comment += '### 🔍 PMD Issues \n\n';
-              comment += pmdOutput + '\n\n';
-            }
 
+            comment += '<details><summary><h3>📝 Detailed Results</h3></summary>\n\n';
+            
+            if (hasEslintIssues && eslintOutput) {
+              comment += '<details><summary><b>🔍 ESLint Issues</b></summary>\n\n';
+              comment += eslintOutput + '\n</details>\n\n';
+            }
+            
+            if (hasPmdIssues && pmdOutput) {
+              comment += '<details><summary><b>🔍 PMD Issues</b></summary>\n\n';
+              comment += pmdOutput + '\n</details>\n\n';
+            }
+            
             if (deployResult) {
-              comment += '### 🚀 Deployment Validation \n\n';
-              comment += `- **Deploy ID**: \`${deployResult.data?.deployId || deployResult.id || 'N/A'}\`\n`;
-              comment += `- **Status**: Failed\n`;
-              if (deployResult.name) comment += `- **Error Type**: ${deployResult.name}\n`;
+              comment += '<details><summary><b>🚀 Deployment Validation</b></summary>\n\n';
               
               if (hasDeployIssues) {
                 comment += '### ❌ Validation Errors\n\n';
                 
                 if (deployResult.message) {
-                  comment += '| Component | Problem |\n';
+                  comment += '| Error | Description |\n';
                   comment += '|------|-------------|\n';
                   
                   const errorMessage = deployResult.message.split('Due To:\n')[1]?.split('\n\n')[0] || deployResult.message;
@@ -439,35 +436,31 @@ jobs:
                       comment += `| Error | ${error} |\n`;
                     }
                   });
-                  comment += '\n';
-                }
-                
-                if (deployResult.warnings?.length > 0) {
-                  comment += '\n### ⚠️ Warnings\n\n';
-                  deployResult.warnings.forEach(warning => {
-                    comment += `- ${warning}\n`;
-                  });
                 }
               } else {
                 comment += '### ✅ Validation Succeeded\n\n';
-                comment += `- **Deploy ID**: \`${deployResult.result?.id || deployResult.id || 'N/A'}\`\n`;
-                comment += `- **Status**: Success\n`;
               }
               
-              comment += '\n\n';
+              comment += `- **Deploy ID**: \`${deployResult.result?.id || deployResult.data?.deployId || 'N/A'}\`\n`;
+              comment += `- **Status**: ${hasDeployIssues ? 'Failed' : 'Success'}\n`;
+              if (hasDeployIssues && deployResult.name) {
+                comment += `- **Error Type**: ${deployResult.name}\n`;
+              }
+              
+              comment += '</details>\n\n';
             }
             
-            const allPassed = !hasDeployIssues;
-            
+            comment += '</details>\n\n';
+
             comment += '---\n';
-            if (allPassed) {
+            if (!hasDeployIssues) {
               comment += '## ✅ Deployment validation passed!\n';
-              comment += 'Ready to be merged 🚀\n';
+              comment += ' Ready to be merged 🚀\n';
             } else {
               comment += '## ❌ Deployment validation failed 👀\n';
-              comment += 'Please review the deployment issues above ⚠️\n';
+              comment += ' Please review the deployment issues above ⚠️\n';
             }
-            
+
             const { issue: { number: issue_number }, repo: { owner, repo } } = context;
             await github.rest.issues.createComment({
               owner,
