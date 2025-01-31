@@ -402,7 +402,7 @@ jobs:
                 comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
               }
 
-              comment += '    %%{init: {"theme": "base", "themeVariables": {"pie1": "#ff0000", "pie2": "#ffa500"}} }%%\n';
+              comment += '    %%{init: {"theme": "base", "themeVariables": {"pie1": "#c9832e", "pie2": "#63561e"}} }%%\n';
               comment += '```\n\n';
 
               comment += '| Tool | Critical | Warnings | Total |\n';
