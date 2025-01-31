@@ -10,6 +10,7 @@ on:
       - 'eslint.config.mjs'
       - 'pmdRuleset.xml'
       - 'cicd/unitTestMap.json'
+
 concurrency:
   group: 'salesforce-validation'
   cancel-in-progress: false     
@@ -182,8 +183,6 @@ jobs:
                   }
                   
                   require("fs").writeFileSync("pmd_report.txt", output);
-                  
-                  console.log(output || "No PMD issues found");
                   
                 } catch (e) {
                   console.error("Error processing PMD output:", e);
