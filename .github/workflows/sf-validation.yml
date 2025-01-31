@@ -541,7 +541,6 @@ jobs:
                   comment += `| ${coverage.name} | ${coverage.numLocationsNotCovered}/${coverage.numLocations} | ${coveragePercentage}% |\n`;
                 });
               }
-              }
               
               comment += '\n';
             }
