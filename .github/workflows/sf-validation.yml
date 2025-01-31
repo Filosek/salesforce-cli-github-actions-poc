@@ -247,6 +247,8 @@ jobs:
               const packageXml = fs.readFileSync("package/package.xml", "utf8");
               const testMap = JSON.parse(fs.readFileSync("cicd/unitTestMap.json", "utf8"));
               
+              console.log("DEBUG - Test Map content:", JSON.stringify(testMap, null, 2));
+              
               xml2js.parseString(packageXml, (err, result) => {
                 if (err) {
                   console.error("Error parsing package.xml:", err);
@@ -267,9 +269,12 @@ jobs:
                 const testClasses = new Set(
                   classNames.filter(name => (name.includes("Test") || name.includes("Tests")) && !name.includes("TestData"))
                 );
+                console.log("DEBUG - Initial test classes from naming:", Array.from(testClasses));
                 
                 classNames.forEach(className => {
+                  console.log(`DEBUG - Checking test map for class: ${className}`);
                   if (testMap[className]) {
+                    console.log(`DEBUG - Found mapped tests for ${className}:`, testMap[className]);
                     testMap[className].forEach(testClass => testClasses.add(testClass));
                   }
                 });
@@ -278,8 +283,11 @@ jobs:
                 console.log("DEBUG - Final test classes:", testClassList);
                 
                 if (testClassList.length > 0) {
-                  fs.appendFileSync(process.env.GITHUB_OUTPUT, `test-classes=${testClassList.join(" ")}\n`);
+                  const output = `test-classes=${testClassList.join(" ")}`;
+                  console.log("DEBUG - Writing output:", output);
+                  fs.appendFileSync(process.env.GITHUB_OUTPUT, output + "\n");
                 } else {
+                  console.log("DEBUG - No test classes found, writing empty output");
                   fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
                 }
               });
