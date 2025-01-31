@@ -36,7 +36,12 @@ jobs:
         uses: tj-actions/changed-files@v42
         with:
           files: |
+            destructiveChanges/destructiveChangesPre.xml
+            destructiveChanges/destructiveChangesPost.xml
             force-app/**
+            package.json
+            eslint.config.mjs
+            pmdRuleset.xml
 
       - name: Install sfdx-git-delta plugin
         if: steps.changed-files.outputs.any_changed == 'true'
