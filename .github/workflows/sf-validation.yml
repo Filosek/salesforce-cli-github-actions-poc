@@ -320,13 +320,19 @@ jobs:
           script: |
             const fs = require('fs');
             
-            // Debug PMD report reading
-            console.log("Reading PMD report...");
+            let deployResult;
             try {
-              const pmdReport = fs.readFileSync('pmd_report.txt', 'utf8');
-              console.log("PMD Report content:", pmdReport);
+              console.log("DEBUG - Reading deploy_report.json");
+              const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
+              console.log("DEBUG - Deploy report content:", deployContent);
+              
+              deployResult = JSON.parse(deployContent);
+              console.log("DEBUG - Parsed deploy result:", JSON.stringify(deployResult, null, 2));
+              
+              const result = deployResult.result || deployResult.data;
+              console.log("DEBUG - Test failures:", JSON.stringify(result?.details?.runTestResult?.failures, null, 2));
             } catch (e) {
-              console.error("Error reading PMD report:", e);
+              console.error("Error reading/parsing deploy report:", e);
             }
             
             let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
@@ -368,7 +374,6 @@ jobs:
                   }
                 });
               }
-              console.log(`Found issues - Critical: ${pmdCritical}, Warnings: ${pmdWarnings}`);
             } catch (e) {
               console.error('Error parsing PMD output:', e);
             }
@@ -431,8 +436,10 @@ jobs:
               
               if (hasDeployIssues) {
                 const result = deployResult.result || deployResult.data;
+                console.log("DEBUG - Processing deploy issues. Result:", JSON.stringify(result, null, 2));
                 
                 if (result?.details?.runTestResult?.failures) {
+                  console.log("DEBUG - Found test failures");
                   comment += '#### ☠️ Unit Tests Failure 🔥\n\n';
                   comment += '| Class | Problem |\n';
                   comment += '|-------|---------||\n';
@@ -447,6 +454,7 @@ jobs:
                   
                   comment += '\n';
                 } else {
+                  console.log("DEBUG - No test failures found, showing validation errors");
                   comment += '#### ❌ Validation Errors\n\n';
                   
                   if (deployResult.message) {
@@ -517,6 +525,7 @@ jobs:
       - name: Check validation status
         if: always() && steps.changed-files.outputs.any_changed == 'true'
         run: |
+          echo "DEBUG - Checking has_issues value: ${{ steps.deploy.outputs.has_issues }}"
           if [ "${{ steps.deploy.outputs.has_issues }}" = "true" ]; then
             echo "Deployment validation failed!"
             exit 1
