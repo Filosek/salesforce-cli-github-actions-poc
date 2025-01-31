@@ -275,6 +275,7 @@ jobs:
                 });
                 
                 const testClassList = Array.from(testClasses);
+                console.log("Test classes to run: ", testClassList);
                 
                 if (testClassList.length > 0) {
                   fs.appendFileSync(process.env.GITHUB_OUTPUT, `test-classes=${testClassList.join(" ")}\n`);
