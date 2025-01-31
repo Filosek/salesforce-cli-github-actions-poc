@@ -3,22 +3,6 @@ public with sharing class AccountHelper {
         System.debug('Fixed Endless Loop!');
         Account acc = new Account();
         acc.Name = 'Test Account';
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
-        System.debug('Fixed Endless Loop!');
+        acc.Active__c = true;
     }
 }
