@@ -387,7 +387,7 @@ jobs:
             comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
 
             const hasDeployIssues = '${{ steps.deploy.outputs.has_issues }}' === 'true';
-            let deployResult;
+            //let deployResult;
             try {
               const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
               deployResult = JSON.parse(deployContent);
