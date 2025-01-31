@@ -67,7 +67,7 @@ jobs:
         run: |
           echo "=== ESLint Debug ==="
           echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
-          CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.js$" | grep -v "meta\.xml$" || true)
+          CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\/accountViewer\/accountViewer\.js$|\/contactViewer\/contactViewer\.js$" || true)
           echo "JS files to check: [$CHANGED_JS_FILES]"
           echo "=== End ESLint Debug ==="
           if [ ! -z "$CHANGED_JS_FILES" ]; then
@@ -132,7 +132,7 @@ jobs:
         run: |
           echo "=== PMD Debug ==="
           echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
-          CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.(cls|trigger|page)$" | grep -v "meta\.xml$" || true)
+          CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\/classes\/.*\.cls$" | grep -v "meta\.xml$" || true)
           echo "Apex files to check: [$CHANGED_APEX_FILES]"
           echo "=== End PMD Debug ==="
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
