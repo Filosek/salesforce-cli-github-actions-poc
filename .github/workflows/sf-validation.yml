@@ -431,13 +431,11 @@ jobs:
               if (hasDeployIssues && deployResult.name) {
                 comment += `- **Error Type**: ${deployResult.name}\n`;
               }
+
+              const result = deployResult.result || deployResult.data;
               
               if (hasDeployIssues) {
-                const result = deployResult.result || deployResult.data;
-                console.log("DEBUG - Processing deploy issues. Result:", JSON.stringify(result, null, 2));
-                
                 if (result?.details?.runTestResult?.failures) {
-                  console.log("DEBUG - Found test failures");
                   comment += '#### ☠️ Unit Tests Failure 🔥\n\n';
                   comment += '| Class | Method | Problem |\n';
                   comment += '|-------|---------|--------|\n';
@@ -452,7 +450,6 @@ jobs:
                   
                   comment += '\n';
                 } else {
-                  console.log("DEBUG - No test failures found, showing validation errors");
                   comment += '#### ❌ Validation Errors\n\n';
                   
                   if (deployResult.message) {
