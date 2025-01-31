@@ -239,12 +239,17 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         id: test-classes
         run: |
+          echo "DEBUG - package.xml content:"
+          cat package/package.xml
+          
           node -e '
             const fs = require("fs");
             const xml2js = require("xml2js");
             
             try {
               const packageXml = fs.readFileSync("package/package.xml", "utf8");
+              console.log("DEBUG - Raw package XML:", packageXml);
+              
               const testMap = JSON.parse(fs.readFileSync("cicd/unitTestMap.json", "utf8"));
               
               console.log("DEBUG - Test Map content:", JSON.stringify(testMap, null, 2));
@@ -255,6 +260,8 @@ jobs:
                   process.exit(1);
                 }
                 
+                console.log("DEBUG - Parsed package.xml:", JSON.stringify(result, null, 2));
+                
                 const types = result.Package.types || [];
                 const apexClasses = types.find(t => t.name[0] === "ApexClass");
                 
@@ -263,7 +270,7 @@ jobs:
                   process.exit(0);
                 }
                 
-                const classNames = apexClasses.members.map(m => m[0]);
+                const classNames = apexClasses.members;
                 console.log("DEBUG - Found classes:", classNames);
                 
                 const testClasses = new Set(
