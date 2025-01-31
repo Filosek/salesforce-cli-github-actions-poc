@@ -1,3 +1,4 @@
 {
-    "AccountHelper": ["AccountHelperTest"]
+    "AccountHelper": ["AccountHelperTest"],
+    "ContactHelper": ["ContactHelperTest"]
 }
