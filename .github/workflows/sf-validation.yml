@@ -402,7 +402,6 @@ jobs:
                 comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
               }
 
-              comment += '    %%{init: {"pie": {"colorScheme": ["#ff0000", "#ffa500"]}} }%%\n';
               comment += '```\n\n';
 
               comment += '| Tool | Critical | Warnings | Total |\n';
@@ -500,7 +499,7 @@ jobs:
                     : [result.details.runTestResult.codeCoverage];
 
                   if (codeCoverages.length > 0) {
-                    comment += '#### 🚔Code Coverage🚓\n\n';
+                    comment += '#### 🚔 Code Coverage 🚓\n\n';
                     comment += '| Class | Coverage | Coverage % |\n';
                     comment += '|-------|----------|------------|\n';
                     codeCoverages.forEach(coverage => {
