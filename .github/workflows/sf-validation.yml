@@ -66,7 +66,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
-          CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep "\.js$" | grep -v "meta\.xml$" || true)
+          CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.js$" | grep -v "meta\.xml$" || true)
           echo "JS files to check: $CHANGED_JS_FILES"
           if [ ! -z "$CHANGED_JS_FILES" ]; then
             echo "Running ESLint on: $CHANGED_JS_FILES"
@@ -194,11 +194,12 @@ jobs:
                   require("fs").writeFileSync("pmd_report.txt", errorOutput);
                   console.log(errorOutput);
                 }
-              ' || true
+              ' | tee pmd_report.txt || true
             if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               echo "PMD_FAILED=true" >> $GITHUB_ENV
             fi
           else
+            echo "No Apex files to analyze" > pmd_report.txt
             echo "[]" > pmd_priorities.json
 
       - name: Install sfdx-git-delta plugin
