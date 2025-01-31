@@ -563,11 +563,12 @@ jobs:
             
               if (codeCoverages.length > 0) {
                 comment += '#### 🚔 Code Coverage 🚓\n\n';
-                comment += '| Class | Not Covered / Total | Coverage % |\n';
+                comment += '| Class | Coverage | Coverage % |\n';
                 comment += '|-------|----------|------------|\n';
                 codeCoverages.forEach(coverage => {
                   const coveragePercentage = 100 - (coverage.numLocationsNotCovered / coverage.numLocations * 100).toFixed(2);
-                  comment += `| ${coverage.name} | ${coverage.numLocationsNotCovered}/${coverage.numLocations} | ${coveragePercentage}% |\n`;
+                  const coverage = coverage.numLocations - coverage.numLocationsNotCovered;
+                  comment += `| ${coverage.name} | ${coverage}/${coverage.numLocations} | ${coveragePercentage}% |\n`;
                 });
               }
               
