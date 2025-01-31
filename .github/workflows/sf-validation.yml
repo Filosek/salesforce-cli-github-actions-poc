@@ -65,11 +65,9 @@ jobs:
         id: eslint
         continue-on-error: true
         run: |
-          echo "=== ESLint Debug ==="
           echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
           CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep ".*\.js$" | grep -v "meta\.xml$" | tr '\n' ' ' || true)
           echo "JS files to check: [$CHANGED_JS_FILES]"
-          echo "=== End ESLint Debug ==="
           if [ ! -z "$CHANGED_JS_FILES" ]; then
             echo "Running ESLint on: $CHANGED_JS_FILES"
             npx eslint $CHANGED_JS_FILES --format json | node -e '
@@ -131,11 +129,9 @@ jobs:
         id: pmd
         continue-on-error: true
         run: |
-          echo "=== PMD Debug ==="
           echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
           CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep -E ".*\.(cls|trigger|page)$" | grep -v "meta\.xml$" | tr '\n' ',' || true)
           echo "Apex files to check: [$CHANGED_APEX_FILES]"
-          echo "=== End PMD Debug ==="
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
             echo "Running PMD on: $CHANGED_APEX_FILES"
             ./pmd-bin/bin/pmd check \
@@ -146,18 +142,14 @@ jobs:
               2>&1 | node -e '
                 const input = require("fs").readFileSync(0, "utf-8");
                 try {
-                  console.log("Input:", input);
                   const jsonStart = input.indexOf("{");
                   const jsonPart = input.slice(jsonStart);
-                  
                   const result = JSON.parse(jsonPart);
                   
-                  // Helper function to get severity from priority
                   const getSeverity = (priority) => {
                     return priority <= 2 ? "Critical" : "Warning";
                   };
                   
-                  // Collect all violations
                   const violations = result.files.flatMap(file => {
                     const fileName = file.filename.split("/").pop();
                     return file.violations.map(v => ({
@@ -170,11 +162,9 @@ jobs:
                     }));
                   });
                   
-                  // Store priorities in a separate file for severity counting
                   const priorities = violations.map(v => v.priority);
                   require("fs").writeFileSync("pmd_priorities.json", JSON.stringify(priorities));
                   
-                  // Create formatted output for the report
                   let output = "";
                   
                   if (violations.length > 0) {
@@ -185,10 +175,8 @@ jobs:
                     });
                   }
                   
-                  // Write only the formatted table to the report file
                   require("fs").writeFileSync("pmd_report.txt", output);
                   
-                  // Also print to console for logging
                   console.log(output || "No PMD issues found");
                   
                 } catch (e) {
@@ -200,7 +188,7 @@ jobs:
                   require("fs").writeFileSync("pmd_report.txt", errorOutput);
                   console.log(errorOutput);
                 }
-              ' | tee pmd_report.txt || true
+              '
             if [ "${PIPESTATUS[0]}" -ne 0 ]; then
               echo "PMD_FAILED=true" >> $GITHUB_ENV
             fi
