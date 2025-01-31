@@ -493,24 +493,38 @@ jobs:
                     comment += '\n';
                   }
                 }
-
-                if (result?.details?.runTestResult?.codeCoverage) {
-                  const codeCoverages = Array.isArray(result.details.runTestResult.codeCoverage)
-                    ? result.details.runTestResult.codeCoverage
-                    : [result.details.runTestResult.codeCoverage];
-
-                  if (codeCoverages.length > 0) {
-                    comment += '#### 🚔 Code Coverage 🚓\n\n';
-                    comment += '| Class | Coverage | Coverage % |\n';
-                    comment += '|-------|----------|------------|\n';
-                    codeCoverages.forEach(coverage => {
-                      const coveragePercentage = (coverage.numLocationsNotCovered / coverage.numLocations * 100).toFixed(2);
-                      comment += `| ${coverage.name} | ${coverage.numLocationsNotCovered}/${coverage.numLocations} | ${coveragePercentage}% |\n`;
-                    });
-                  }
-                }
               } else {
                 comment += '#### ✅ Validation Succeeded\n\n';
+              }
+
+              comment += '#### 🧪 Executed Tests\n\n';
+              comment += '| Executed Test |\n';
+              comment += '|---------------|\n';
+              
+              const testClasses = '${{ steps.test-classes.outputs.test-classes }}'.trim();
+              if (testClasses) {
+                testClasses.split(' ').forEach(testClass => {
+                  comment += `| ${testClass} |\n`;
+                });
+              } else {
+                comment += '| No tests executed during the validation |\n';
+              }
+              comment += '\n';
+
+              if (result?.details?.runTestResult?.codeCoverage) {
+                const codeCoverages = Array.isArray(result.details.runTestResult.codeCoverage)
+                  ? result.details.runTestResult.codeCoverage
+                  : [result.details.runTestResult.codeCoverage];
+
+                if (codeCoverages.length > 0) {
+                  comment += '#### 🚔 Code Coverage 🚓\n\n';
+                  comment += '| Class | Coverage | Coverage % |\n';
+                  comment += '|-------|----------|------------|\n';
+                  codeCoverages.forEach(coverage => {
+                    const coveragePercentage = (coverage.numLocationsNotCovered / coverage.numLocations * 100).toFixed(2);
+                    comment += `| ${coverage.name} | ${coverage.numLocationsNotCovered}/${coverage.numLocations} | ${coveragePercentage}% |\n`;
+                  });
+                }
               }
               
               comment += '\n';
