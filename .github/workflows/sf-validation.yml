@@ -67,10 +67,7 @@ jobs:
         run: |
           echo "=== ESLint Debug ==="
           echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
-          echo "Step 1 - after first grep:"
-          echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep "\.js" || true
-          echo "Step 2 - after excluding meta.xml:"
-          CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep "\.js$" | grep -v "meta\.xml" || true)
+          CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep ".*\.js$" | grep -v "meta\.xml$" | tr '\n' ' ' || true)
           echo "JS files to check: [$CHANGED_JS_FILES]"
           echo "=== End ESLint Debug ==="
           if [ ! -z "$CHANGED_JS_FILES" ]; then
@@ -136,10 +133,7 @@ jobs:
         run: |
           echo "=== PMD Debug ==="
           echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
-          echo "Step 1 - after first grep:"
-          echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep "\.cls" || true
-          echo "Step 2 - after excluding meta.xml:"
-          CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep "\.cls$" | grep -v "meta\.xml" || true)
+          CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep -E ".*\.(cls|trigger|page)$" | grep -v "meta\.xml$" | tr '\n' ' ' || true)
           echo "Apex files to check: [$CHANGED_APEX_FILES]"
           echo "=== End PMD Debug ==="
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
