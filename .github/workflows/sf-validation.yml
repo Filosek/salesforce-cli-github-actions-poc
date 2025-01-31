@@ -239,38 +239,34 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         id: test-classes
         run: |
-          echo "DEBUG - package.xml content:"
-          cat package/package.xml
-          
           node -e '
             const fs = require("fs");
             const convert = require("xml-js");
             
             try {
               const packageXml = fs.readFileSync("package/package.xml", "utf8");
-              console.log("DEBUG - Raw package XML:", packageXml);
-              
               const testMap = JSON.parse(fs.readFileSync("cicd/unitTestMap.json", "utf8"));
               
               console.log("DEBUG - Test Map content:", JSON.stringify(testMap, null, 2));
               
-              const convertionResult = convert.xml2js(packageXml, {compact: true});
-              if (convertionResult.error) {
-                  console.error("Error parsing package.xml:", err);
-                  process.exit(1);
-              }
+              const result = convert.xml2js(packageXml, {compact: true});
+              console.log("DEBUG - Parsed XML:", JSON.stringify(result, null, 2));
               
-              console.log("DEBUG - Parsed package.xml:", JSON.stringify(convertionResult, null, 2));
-              
-              const types = result.Package.types || [];
-              const apexClasses = types.find(t => t.name[0] === "ApexClass");
+              const types = Array.isArray(result.Package.types) 
+                ? result.Package.types 
+                : [result.Package.types];
+                
+              const apexClasses = types.find(t => t.name._text === "ApexClass");
               
               if (!apexClasses || !apexClasses.members) {
                 fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
                 process.exit(0);
               }
               
-              const classNames = apexClasses.members;
+              const classNames = Array.isArray(apexClasses.members) 
+                ? apexClasses.members.map(m => m._text)
+                : [apexClasses.members._text];
+                
               console.log("DEBUG - Found classes:", classNames);
               
               const testClasses = new Set(
