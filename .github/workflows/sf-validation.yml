@@ -567,8 +567,8 @@ jobs:
                 comment += '|-------|----------|------------|\n';
                 codeCoverages.forEach(coverage => {
                   const coveragePercentage = 100 - (coverage.numLocationsNotCovered / coverage.numLocations * 100).toFixed(2);
-                  const coverage = coverage.numLocations - coverage.numLocationsNotCovered;
-                  comment += `| ${coverage.name} | ${coverage}/${coverage.numLocations} | ${coveragePercentage}% |\n`;
+                  const numLocationsCovered = coverage.numLocations - coverage.numLocationsNotCovered;
+                  comment += `| ${coverage.name} | ${numLocationsCovered}/${coverage.numLocations} | ${coveragePercentage}% |\n`;
                 });
               }
               
