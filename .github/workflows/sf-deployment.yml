@@ -83,6 +83,8 @@ jobs:
             --manifest package/package.xml \
             --pre-destructive-changes destructiveChanges/destructiveChangesPre.xml \
             --post-destructive-changes destructiveChanges/destructiveChangesPost.xml \
+            --ignore-conflicts \
+            --ignore-warnings \
             --target-org deployment-org \
             --json | tee deploy_result.json
 

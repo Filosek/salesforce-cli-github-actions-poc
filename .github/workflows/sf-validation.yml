@@ -301,6 +301,8 @@ jobs:
             --manifest package/package.xml \
             --pre-destructive-changes destructiveChanges/destructiveChangesPre.xml \
             --post-destructive-changes destructiveChanges/destructiveChangesPost.xml \
+            --ignore-conflicts \
+            --ignore-warnings \
             --target-org validation-org"
           
           # Add test configuration if test classes are present
