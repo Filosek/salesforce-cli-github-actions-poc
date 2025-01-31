@@ -245,7 +245,6 @@ jobs:
             
             try {
               const packageXml = fs.readFileSync("package/package.xml", "utf8");
-              
               const testMap = JSON.parse(fs.readFileSync("cicd/unitTestMap.json", "utf8"));
               
               xml2js.parseString(packageXml, (err, result) => {
@@ -255,14 +254,15 @@ jobs:
                 }
                 
                 const types = result.Package.types || [];
-                const apexClasses = types.find(t => t.name === "ApexClass");
+                const apexClasses = types.find(t => t.name[0] === "ApexClass");
                 
                 if (!apexClasses || !apexClasses.members) {
                   fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
                   process.exit(0);
                 }
                 
-                const classNames = apexClasses.members;
+                const classNames = apexClasses.members.map(m => m[0]);
+                console.log("DEBUG - Found classes:", classNames);
                 
                 const testClasses = new Set(
                   classNames.filter(name => (name.includes("Test") || name.includes("Tests")) && !name.includes("TestData"))
@@ -275,7 +275,7 @@ jobs:
                 });
                 
                 const testClassList = Array.from(testClasses);
-                console.log("Test classes to run: ", testClassList);
+                console.log("DEBUG - Final test classes:", testClassList);
                 
                 if (testClassList.length > 0) {
                   fs.appendFileSync(process.env.GITHUB_OUTPUT, `test-classes=${testClassList.join(" ")}\n`);
