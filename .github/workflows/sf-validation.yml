@@ -394,14 +394,15 @@ jobs:
               comment += '```mermaid\npie\n';
               comment += '    title Issues Distribution\n';
 
-              if (totalCritical > 0) {
+              if (totalCritical >= 0) {
                 comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
               }
 
-              if (totalWarnings > 0) {
+              if (totalWarnings >= 0) {
                 comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
               }
 
+              comment += '    %%{init: {"theme": "base", "themeVariables": {"pie1": "#ff0000", "pie2": "#ffa500"}} }%%\n';
               comment += '```\n\n';
 
               comment += '| Tool | Critical | Warnings | Total |\n';
