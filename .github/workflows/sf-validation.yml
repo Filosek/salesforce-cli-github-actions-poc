@@ -425,6 +425,12 @@ jobs:
             
             if (deployResult) {
               comment += '### 🚀 Deployment Validation\n\n';
+              comment += `- **Deploy ID**: \`${deployResult.result?.id || deployResult.data?.deployId || 'N/A'}\`\n`;
+              comment += `- **Status**: ${hasDeployIssues ? 'Failed' : 'Success'}\n`;
+              
+              if (hasDeployIssues && deployResult.name) {
+                comment += `- **Error Type**: ${deployResult.name}\n`;
+              }
               
               if (hasDeployIssues) {
                 const result = deployResult.result || deployResult.data;
@@ -489,12 +495,6 @@ jobs:
                 }
               } else {
                 comment += '#### ✅ Validation Succeeded\n\n';
-              }
-              
-              comment += `- **Deploy ID**: \`${deployResult.result?.id || deployResult.data?.deployId || 'N/A'}\`\n`;
-              comment += `- **Status**: ${hasDeployIssues ? 'Failed' : 'Success'}\n`;
-              if (hasDeployIssues && deployResult.name) {
-                comment += `- **Error Type**: ${deployResult.name}\n`;
               }
               
               comment += '\n';
