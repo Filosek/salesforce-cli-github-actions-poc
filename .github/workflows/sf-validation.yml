@@ -247,10 +247,8 @@ jobs:
               const packageXml = fs.readFileSync("package/package.xml", "utf8");
               const testMap = JSON.parse(fs.readFileSync("cicd/unitTestMap.json", "utf8"));
               
-              console.log("DEBUG - Test Map content:", JSON.stringify(testMap, null, 2));
               
               const result = convert.xml2js(packageXml, {compact: true});
-              console.log("DEBUG - Parsed XML:", JSON.stringify(result, null, 2));
               
               const types = Array.isArray(result.Package.types) 
                 ? result.Package.types 
@@ -267,30 +265,23 @@ jobs:
                 ? apexClasses.members.map(m => m._text)
                 : [apexClasses.members._text];
                 
-              console.log("DEBUG - Found classes:", classNames);
               
               const testClasses = new Set(
                 classNames.filter(name => (name.includes("Test") || name.includes("Tests")) && !name.includes("TestData"))
               );
-              console.log("DEBUG - Initial test classes from naming:", Array.from(testClasses));
               
               classNames.forEach(className => {
-                console.log(`DEBUG - Checking test map for class: ${className}`);
                 if (testMap[className]) {
-                  console.log(`DEBUG - Found mapped tests for ${className}:`, testMap[className]);
                   testMap[className].forEach(testClass => testClasses.add(testClass));
                 }
               });
               
               const testClassList = Array.from(testClasses);
-              console.log("DEBUG - Final test classes:", testClassList);
-              
+
               if (testClassList.length > 0) {
                 const output = `test-classes=${testClassList.join(" ")}`;
-                console.log("DEBUG - Writing output:", output);
                 fs.appendFileSync(process.env.GITHUB_OUTPUT, output + "\n");
               } else {
-                console.log("DEBUG - No test classes found, writing empty output");
                 fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
               }
             } catch (error) {
