@@ -255,14 +255,14 @@ jobs:
                 }
                 
                 const types = result.Package.types || [];
-                const apexClasses = types.find(t => t.name[0] === "ApexClass");
+                const apexClasses = types.find(t => t.name === "ApexClass");
                 
                 if (!apexClasses || !apexClasses.members) {
                   fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
                   process.exit(0);
                 }
                 
-                const classNames = apexClasses.members.map(m => m[0]);
+                const classNames = apexClasses.members;
                 
                 const testClasses = new Set(
                   classNames.filter(name => (name.includes("Test") || name.includes("Tests")) && !name.includes("TestData"))
