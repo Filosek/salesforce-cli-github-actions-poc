@@ -481,11 +481,11 @@ jobs:
                   }
 
                   if (componentFailures.length > 0) {
-                    comment += '| Component | Problem |\n';
-                    comment += '|-----------|--------|\n';
+                    comment += '| Component | Type | Problem |\n';
+                    comment += '|-----------|--------|--------|\n';
                     
                     componentFailures.forEach(failure => {
-                      comment += `| ${failure.fullName} | ${failure.problem} |\n`;
+                      comment += `| ${failure.fullName} | ${failure.componentType} | ${failure.problem} |\n`;
                     });
                   }
                 }
