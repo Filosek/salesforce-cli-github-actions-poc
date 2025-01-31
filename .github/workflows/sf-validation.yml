@@ -441,15 +441,16 @@ jobs:
             }
             
             if (deployResult) {
+              const result = deployResult.result;
+
               comment += '### 🚀 Deployment Validation\n\n';
-              comment += `- **Deploy ID**: \`${deployResult.result?.id || 'N/A'}\`\n`;
+              comment += `- **Deploy ID**: \`${result.id || 'N/A'}\`\n`;
+              comment += `- **Deploy URL**: [Click Here](${result.deployUrl || 'N/A'})\n`;
               comment += `- **Status**: ${hasDeployIssues ? 'Failed ❌' : 'Success ✅'}\n`;
             
               if (hasDeployIssues && deployResult.name) {
                 comment += `- **Error Type**: ${deployResult.name}\n`;
               }
-            
-              const result = deployResult.result;
               
               if (hasDeployIssues) {
                 let failures = [];
@@ -487,7 +488,7 @@ jobs:
                     componentFailures.forEach(failure => {
                       const line = failure.lineNumber ? failure.lineNumber : ' ';
                       const column = failure.columnNumber ? failure.columnNumber : ' ';
-                      
+
                       comment += `| ${failure.fullName} | ${failure.componentType} | ${line} | ${column} | ${failure.problem} |\n`;
                     });
                   }
@@ -516,11 +517,34 @@ jobs:
               comment += '#### 🧪 Executed Tests\n\n';
               comment += '| Executed Test |\n';
               comment += '|---------------|\n';
+
+              let failedTest = [];
+              let passedTest = [];
+
+              if (result?.details?.runTestResult?.failures) {
+                failedTest = Array.isArray(result.details.runTestResult.failures)
+                  ? result.details.runTestResult.failures
+                  : [result.details.runTestResult.failures];
+              }
+
+              if (result?.details?.runTestResult?.successes) {
+                passedTest = Array.isArray(result.details.runTestResult.successes)
+                  ? result.details.runTestResult.successes
+                  : [result.details.runTestResult.successes];
+              }
+
+              const executedTestClasses = new Set();
+
+              failedTest.forEach(test => {
+                executedTestClasses.add(test.name);
+              });
+
+              passedTest.forEach(test => {
+                executedTestClasses.add(test.name);
+              });
               
-              const testClasses = '${{ steps.test-classes.outputs.test-classes }}'.trim();
-              
-              if (testClasses) {
-                testClasses.split(' ').forEach(testClass => {
+              if (executedTestClasses.size > 0) {
+                executedTestClasses.forEach(testClass => {
                   comment += `| ${testClass} |\n`;
                 });
               } else {
