@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'force-app/**'
+      - 'destructiveChanges/**'
       - 'package.json'
       - 'eslint.config.mjs'
       - 'pmdRuleset.xml'
@@ -58,7 +59,11 @@ jobs:
         uses: tj-actions/changed-files@v42
         with:
           files: |
-            force-app/**
+            - destructiveChanges/**
+            - force-app/**
+            - package.json
+            - eslint.config.mjs
+            - pmdRuleset.xml
 
       - name: Run ESLint
         if: steps.changed-files.outputs.any_changed == 'true'
