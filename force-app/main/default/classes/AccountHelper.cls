@@ -1,8 +1,5 @@
 public with sharing class AccountHelper {
     public static void updateAccount() {
-        while (true) {
-            System.debug('xxx');
-            break;
-        }
+        System.debug('Fixed Endless Loop!')
     }
 }
