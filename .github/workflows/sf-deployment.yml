@@ -1,0 +1,101 @@
+name: Salesforce Deployment
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'force-app/**'
+
+concurrency:
+  group: 'salesforce-deployment'
+  cancel-in-progress: false     
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Cache node_modules
+        id: node-modules-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package.json', 'package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "Cache miss - installing dependencies"
+          npm ci
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v42
+        with:
+          files: |
+            force-app/**
+
+      - name: Install sfdx-git-delta plugin
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "Installing sfdx-git-delta plugin..."
+          echo y | npx sf plugins install sfdx-git-delta
+
+      - name: Generate delta package
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          # Get the previous commit hash
+          PREVIOUS_COMMIT=$(git rev-parse HEAD^)
+          echo "Comparing changes with previous commit: $PREVIOUS_COMMIT"
+          
+          npx sf sgd source delta \
+            --to HEAD \
+            --from $PREVIOUS_COMMIT \
+            --output . \
+            --source-dir force-app \
+            --generate-delta
+
+          if [ ! -f "package/package.xml" ]; then
+            echo "No package.xml generated - no metadata changes detected"
+            exit 0
+          fi
+          echo "Generated package.xml contents:"
+          cat package/package.xml
+
+      - name: Authenticate to Salesforce
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "${{ secrets.SFDX_AUTH_URL }}" > ./authfile
+          npx sf org login sfdx-url -f ./authfile -a deployment-org
+          rm ./authfile
+
+      - name: Deploy to org
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "Starting deployment..."
+          npx sf project deploy start \
+            --manifest package/package.xml \
+            --pre-destructive-changes destructiveChanges/destructiveChangesPre.xml \
+            --post-destructive-changes destructiveChanges/destructiveChangesPost.xml \
+            --target-org deployment-org \
+            --json | tee deploy_result.json
+
+          # Check deployment status
+          if [ $? -ne 0 ]; then
+            echo "Deployment failed!"
+            exit 1
+          fi 

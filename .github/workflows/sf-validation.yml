@@ -9,6 +9,14 @@ on:
       - 'eslint.config.mjs'
       - 'pmdRuleset.xml'
 
+concurrency:
+  group: 'salesforce-validation'
+  cancel-in-progress: false     
+
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -21,17 +29,29 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
-      - name: Install dependencies and create lock file
-        run: npm install
-
-      - name: Cache node modules
-        uses: actions/cache@v4
+      - name: Cache node_modules
+        id: node-modules-cache
+        uses: actions/cache/restore@v4
         with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package.json', 'package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-node-
+            ${{ runner.os }}-node-modules-
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "Cache miss - installing dependencies"
+          npm ci
+
+      - name: Save node_modules cache
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package.json', 'package-lock.json') }}
 
       - name: Get changed files
         id: changed-files
@@ -42,10 +62,44 @@ jobs:
 
       - name: Run ESLint
         if: steps.changed-files.outputs.any_changed == 'true'
+        id: eslint
+        continue-on-error: true
         run: |
-          CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.js$" || true)
+          echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
+          CHANGED_JS_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep ".*\.js$" | grep -v "meta\.xml$" | tr '\n' ' ' || true)
+          echo "JS files to check: [$CHANGED_JS_FILES]"
           if [ ! -z "$CHANGED_JS_FILES" ]; then
-            npx eslint $CHANGED_JS_FILES
+            echo "Running ESLint on: $CHANGED_JS_FILES"
+            npx eslint $CHANGED_JS_FILES --format json | node -e '
+              const results = JSON.parse(require("fs").readFileSync(0, "utf-8"));
+              
+              const violations = results.flatMap(result => {
+                const fileName = result.filePath.split("/").pop();
+                return result.messages.map(msg => ({
+                  file: fileName,
+                  line: msg.line,
+                  column: msg.column,
+                  severity: msg.severity === 2 ? "Critical" : "Warning",
+                  rule: msg.ruleId,
+                  description: msg.message
+                }));
+              });
+              
+              if (violations.length > 0) {
+                console.log("| File | Line | Column | Severity | Rule | Description |");
+                console.log("|------|------|--------|----------|------|-------------|");
+                violations.forEach(v => {
+                  console.log(`| ${v.file} | ${v.line} | ${v.column} | ${v.severity} | ${v.rule} | ${v.description} |`);
+                });
+              } else {
+                console.log("No ESLint issues found");
+              }
+            ' | tee eslint_report.txt || true
+            if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+              echo "ESLINT_FAILED=true" >> $GITHUB_ENV
+            fi
+          else
+            echo "No JS files to lint" > eslint_report.txt
           fi
 
       - name: Setup Java
@@ -55,43 +109,112 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Cache PMD
+        if: steps.changed-files.outputs.any_changed == 'true'
+        id: cache-pmd
+        uses: actions/cache@v4
+        with:
+          path: pmd-bin
+          key: ${{ runner.os }}-pmd-7.9.0
+
+      - name: Download PMD
+        if: steps.changed-files.outputs.any_changed == 'true' && steps.cache-pmd.outputs.cache-hit != 'true'
+        run: |
+          wget https://github.com/pmd/pmd/releases/download/pmd_releases%2F7.9.0/pmd-dist-7.9.0-bin.zip
+          unzip pmd-dist-7.9.0-bin.zip
+          mv pmd-bin-7.9.0 pmd-bin
+
       - name: Run PMD
         if: steps.changed-files.outputs.any_changed == 'true'
+        id: pmd
+        continue-on-error: true
         run: |
-          wget https://github.com/pmd/pmd/releases/download/pmd_releases%2F7.0.0/pmd-bin-7.0.0.zip
-          unzip pmd-bin-7.0.0.zip
-          CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -E "\.(cls|trigger|page)$" || true)
+          echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
+          CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep -E ".*\.(cls|trigger|page)$" | grep -v "meta\.xml$" | tr '\n' ',' || true)
+          echo "Apex files to check: [$CHANGED_APEX_FILES]"
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
-            ./pmd-bin-7.0.0/bin/pmd check \
-              -d "$CHANGED_APEX_FILES" \
+            echo "Running PMD on: $CHANGED_APEX_FILES"
+            ./pmd-bin/bin/pmd check \
               -R pmdRuleset.xml \
-              -f text \
-              -language apex \
-              -failOnViolation true
+              -f json \
+              --force-language apex \
+              -d "$CHANGED_APEX_FILES" \
+              2>&1 | node -e '
+                const input = require("fs").readFileSync(0, "utf-8");
+                try {
+                  const jsonStart = input.indexOf("{");
+                  const jsonPart = input.slice(jsonStart);
+                  const result = JSON.parse(jsonPart);
+                  
+                  const getSeverity = (priority) => {
+                    return priority <= 2 ? "Critical" : "Warning";
+                  };
+                  
+                  const violations = result.files.flatMap(file => {
+                    const fileName = file.filename.split("/").pop();
+                    return file.violations.map(v => ({
+                      file: fileName,
+                      line: v.beginline,
+                      severity: getSeverity(v.priority),
+                      rule: v.rule,
+                      description: v.description,
+                      priority: v.priority
+                    }));
+                  });
+                  
+                  const priorities = violations.map(v => v.priority);
+                  require("fs").writeFileSync("pmd_priorities.json", JSON.stringify(priorities));
+                  
+                  let output = "";
+                  
+                  if (violations.length > 0) {
+                    output += "| Class | Line | Severity | Rule | Description |\n";
+                    output += "|-------|------|----------|------|-------------|\n";
+                    violations.forEach(v => {
+                      output += `| ${v.file} | ${v.line} | ${v.severity} | ${v.rule} | ${v.description} |\n`;
+                    });
+                  }
+                  
+                  require("fs").writeFileSync("pmd_report.txt", output);
+                  
+                  console.log(output || "No PMD issues found");
+                  
+                } catch (e) {
+                  console.error("Error processing PMD output:", e);
+                  require("fs").writeFileSync("pmd_priorities.json", "[]");
+                  const errorOutput = "| Class | Line | Severity | Rule | Description |\n" +
+                                   "|-------|------|----------|------|-------------|\n" +
+                                   "| - | - | - | - | Error processing PMD output |\n";
+                  require("fs").writeFileSync("pmd_report.txt", errorOutput);
+                  console.log(errorOutput);
+                }
+              '
+            if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+              echo "PMD_FAILED=true" >> $GITHUB_ENV
+            fi
+          else
+            echo "No Apex files to analyze" > pmd_report.txt
+            echo "[]" > pmd_priorities.json
           fi
 
-      - name: Install Salesforce CLI
+      - name: Install sfdx-git-delta plugin
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          npm install --global @salesforce/cli
-          
-      - name: Install sfdx-git-delta
-        if: steps.changed-files.outputs.any_changed == 'true'
-        run: |
-          echo y | sf plugins install sfdx-git-delta
+          echo "Installing sfdx-git-delta plugin..."
+          echo y | npx sf plugins install sfdx-git-delta
 
       - name: Generate delta package
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           TARGET_BRANCH=${{ github.base_ref }}
           echo "Comparing changes with target branch: $TARGET_BRANCH"
-          sf sgd source delta \
+          npx sf sgd source delta \
             --to HEAD \
             --from "origin/$TARGET_BRANCH" \
             --output . \
             --source-dir force-app \
             --generate-delta
-          
+
           if [ ! -f "package/package.xml" ]; then
             echo "No package.xml generated - no metadata changes detected"
             exit 0
@@ -103,15 +226,262 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           echo "${{ secrets.SFDX_AUTH_URL }}" > ./authfile
-          sf org login sfdx-url -f ./authfile -a validation-org
+          npx sf org login sfdx-url -f ./authfile -a validation-org
           rm ./authfile
           
+      - name: Generate test class list
+        if: steps.changed-files.outputs.any_changed == 'true'
+        id: test-classes
+        run: |
+          node -e '
+            const fs = require("fs");
+            const xml2js = require("xml2js");
+            
+            const packageXml = fs.readFileSync("package/package.xml", "utf8");
+            const testMap = JSON.parse(fs.readFileSync("cicd/unitTestMap.json", "utf8"));
+            
+            xml2js.parseString(packageXml, (err, result) => {
+              if (err) {
+                console.error("Error parsing package.xml:", err);
+                process.exit(1);
+              }
+              
+              const types = result.Package.types || [];
+              const apexClasses = types.find(t => t.name[0] === "ApexClass");
+              
+              if (!apexClasses || !apexClasses.members) {
+                fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
+                process.exit(0);
+              }
+              
+              const classNames = apexClasses.members.map(m => m[0]);
+              
+              const testClasses = new Set(
+                classNames.filter(name => name.includes("Test") || name.includes("Tests"))
+              );
+              
+              classNames.forEach(className => {
+                if (testMap[className]) {
+                  testMap[className].forEach(testClass => testClasses.add(testClass));
+                }
+              });
+              
+              const testClassList = Array.from(testClasses);
+              if (testClassList.length > 0) {
+                fs.appendFileSync(process.env.GITHUB_OUTPUT, `test-classes=${testClassList.join(" ")}\n`);
+              } else {
+                fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
+              }
+            });
+          '
+
       - name: Deploy to validation org
         if: steps.changed-files.outputs.any_changed == 'true'
+        id: deploy
+        continue-on-error: true
         run: |
           echo "Starting deployment validation..."
-          sf project deploy validate \
+          
+          # Build deploy command
+          DEPLOY_CMD="npx sf project deploy validate \
             --manifest package/package.xml \
-            --test-level RunLocalTests \
-            --target-org validation-org \
-            --verbose
+            --pre-destructive-changes destructiveChanges/destructiveChangesPre.xml \
+            --post-destructive-changes destructiveChanges/destructiveChangesPost.xml \
+            --target-org validation-org"
+          
+          # Add test configuration if test classes are present
+          if [ ! -z "${{ steps.test-classes.outputs.test-classes }}" ]; then
+            DEPLOY_CMD="$DEPLOY_CMD \
+              --test-level RunSpecifiedTests \
+              --tests ${{ steps.test-classes.outputs.test-classes }}"
+          else
+            DEPLOY_CMD="$DEPLOY_CMD --test-level RunLocalTests"
+          fi
+          
+          # Add json output and execute
+          $DEPLOY_CMD --json | node -e '
+            const input = require("fs").readFileSync(0, "utf8");
+            const jsonStart = input.indexOf("{");
+            const jsonContent = input.slice(jsonStart);
+            const result = JSON.parse(jsonContent);
+            
+            const hasDeployIssues = result.status === 1;
+            const fs = require("fs");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `has_issues=${hasDeployIssues}\n`);
+            
+            console.log(jsonContent);
+          ' > deploy_report.json
+
+      - name: Create PR Comment
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Debug PMD report reading
+            console.log("Reading PMD report...");
+            try {
+              const pmdReport = fs.readFileSync('pmd_report.txt', 'utf8');
+              console.log("PMD Report content:", pmdReport);
+            } catch (e) {
+              console.error("Error reading PMD report:", e);
+            }
+            
+            let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
+            
+            let eslintCritical = 0;
+            let eslintWarnings = 0;
+            let eslintOutput = '';
+            try {
+              eslintOutput = fs.readFileSync('eslint_report.txt', 'utf8').trim();
+              if (eslintOutput !== 'No JS files to lint' && eslintOutput !== 'No ESLint issues found') {
+                const lines = eslintOutput.split('\n');
+                lines.slice(2).forEach(line => {
+                  const parts = line.split('|').map(p => p.trim());
+                  if (parts.length >= 6) {
+                    if (parts[4] === 'Critical') eslintCritical++;
+                    if (parts[4] === 'Warning') eslintWarnings++;
+                  }
+                });
+              }
+            } catch (e) {
+              console.error('Error parsing ESLint output:', e);
+            }
+
+            let pmdCritical = 0;
+            let pmdWarnings = 0;
+            let pmdOutput = '';
+            try {
+              pmdOutput = fs.readFileSync('pmd_report.txt', 'utf8').trim();
+              
+              if (pmdOutput && pmdOutput !== 'No Apex files to analyze' && pmdOutput !== 'No PMD issues found') {
+                const lines = pmdOutput.split('\n');
+
+                lines.slice(2).forEach(line => {
+                  const parts = line.split('|').map(p => p.trim());
+                  
+                  if (parts.length >= 5) {
+                    if (parts[3] === 'Critical') pmdCritical++;
+                    if (parts[3] === 'Warning') pmdWarnings++;
+                  }
+                });
+              }
+              console.log(`Found issues - Critical: ${pmdCritical}, Warnings: ${pmdWarnings}`);
+            } catch (e) {
+              console.error('Error parsing PMD output:', e);
+            }
+
+            comment += '### 📊 Summary\n\n';
+            comment += '| Check | Status |\n';
+            comment += '|-------|--------|\n';
+            const hasEslintIssues = eslintCritical + eslintWarnings > 0;
+            const hasPmdIssues = pmdCritical + pmdWarnings > 0;
+            comment += `| ESLint | ${hasEslintIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
+            comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
+
+            const hasDeployIssues = '${{ steps.deploy.outputs.has_issues }}' === 'true';
+            let deployResult;
+            try {
+              const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
+              deployResult = JSON.parse(deployContent);
+              comment += `| Validation | ${hasDeployIssues ? '❌ Failed' : '✅ Ready'} |\n\n`;
+            } catch (e) {
+              console.error('Error parsing deployment results:', e);
+              comment += '| Validation | ❌ Error parsing results |\n\n';
+            }
+
+            const totalCritical = eslintCritical + pmdCritical;
+            const totalWarnings = eslintWarnings + pmdWarnings;
+            
+            if (totalCritical > 0 || totalWarnings > 0) {
+              comment += '### 📊 Issues Severity\n\n';
+              comment += '```mermaid\npie\n';
+              comment += '    title Issues Distribution\n';
+              if (totalCritical > 0) {
+                comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
+              }
+              if (totalWarnings > 0) {
+                comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
+              }
+              comment += '    %%{init: {"pie": {"colorScheme": ["#ff0000", "#ffa500"]}} }%%\n';
+              comment += '```\n\n';
+              
+              comment += '| Tool | Critical | Warnings | Total |\n';
+              comment += '|------|----------|----------|--------|\n';
+              comment += `| ESLint | ${eslintCritical} | ${eslintWarnings} | ${eslintCritical + eslintWarnings} |\n`;
+              comment += `| PMD | ${pmdCritical} | ${pmdWarnings} | ${pmdCritical + pmdWarnings} |\n\n`;
+            }
+
+            comment += '## 📝 Detailed Results\n\n';
+            
+            if (hasEslintIssues && eslintOutput) {
+              comment += '### 🔍 ESLint Issues\n\n';
+              comment += eslintOutput + '\n\n';
+            }
+            
+            if (hasPmdIssues && pmdOutput) {
+              comment += '### 🔍 PMD Issues\n\n';
+              comment += pmdOutput + '\n\n';
+            }
+            
+            if (deployResult) {
+              comment += '### 🚀 Deployment Validation\n\n';
+              
+              if (hasDeployIssues) {
+                comment += '#### ❌ Validation Errors\n\n';
+                
+                if (deployResult.message) {
+                  comment += '| Error | Description |\n';
+                  comment += '|------|-------------|\n';
+                  
+                  const errorMessage = deployResult.message.split('Due To:\n')[1]?.split('\n\n')[0] || deployResult.message;
+                  const errors = errorMessage.split('\n').filter(line => line.trim());
+                  
+                  errors.forEach(error => {
+                    if (error.includes(' - ')) {
+                      const [component, ...messageParts] = error.split(' - ');
+                      const message = messageParts.join(' - ');
+                      comment += `| ${component} | ${message} |\n`;
+                    } else {
+                      comment += `| Error | ${error} |\n`;
+                    }
+                  });
+                }
+              } else {
+                comment += '#### ✅ Validation Succeeded\n\n';
+              }
+              
+              comment += `- **Deploy ID**: \`${deployResult.result?.id || deployResult.data?.deployId || 'N/A'}\`\n`;
+              comment += `- **Status**: ${hasDeployIssues ? 'Failed' : 'Success'}\n`;
+              if (hasDeployIssues && deployResult.name) {
+                comment += `- **Error Type**: ${deployResult.name}\n`;
+              }
+              
+              comment += '\n';
+            }
+
+            comment += '---\n';
+            if (!hasDeployIssues) {
+              comment += '## ✅ Deployment validation passed!\n';
+              comment += 'Ready to be merged 🚀\n';
+            } else {
+              comment += '## ❌ Deployment validation failed 👀\n';
+              comment += 'Please review the deployment issues above ⚠️\n';
+            }
+
+            const { issue: { number: issue_number }, repo: { owner, repo } } = context;
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: comment
+            });
+
+      - name: Check validation status
+        if: always() && steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          if [ "${{ steps.deploy.outputs.has_issues }}" = "true" ]; then
+            echo "Deployment validation failed!"
+            exit 1
+          fi
