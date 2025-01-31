@@ -283,7 +283,8 @@ jobs:
           echo "Starting deployment validation..."
           
           # Build deploy command
-          DEPLOY_CMD="npx sf project deploy validate \
+          DEPLOY_CMD="npx sf project deploy start \
+            --check-only \
             --manifest package/package.xml \
             --pre-destructive-changes destructiveChanges/destructiveChangesPre.xml \
             --post-destructive-changes destructiveChanges/destructiveChangesPost.xml \
@@ -429,24 +430,59 @@ jobs:
               comment += '### 🚀 Deployment Validation\n\n';
               
               if (hasDeployIssues) {
-                comment += '#### ❌ Validation Errors\n\n';
+                const result = deployResult.result || deployResult.data;
                 
-                if (deployResult.message) {
-                  comment += '| Error | Description |\n';
-                  comment += '|------|-------------|\n';
+                if (result?.details?.runTestResult?.failures) {
+                  comment += '#### ☠️ Unit Tests Failure 🔥\n\n';
+                  comment += '| Class | Problem |\n';
+                  comment += '|-------|---------||\n';
                   
-                  const errorMessage = deployResult.message.split('Due To:\n')[1]?.split('\n\n')[0] || deployResult.message;
-                  const errors = errorMessage.split('\n').filter(line => line.trim());
+                  const failures = Array.isArray(result.details.runTestResult.failures) 
+                    ? result.details.runTestResult.failures 
+                    : [result.details.runTestResult.failures];
                   
-                  errors.forEach(error => {
-                    if (error.includes(' - ')) {
-                      const [component, ...messageParts] = error.split(' - ');
-                      const message = messageParts.join(' - ');
-                      comment += `| ${component} | ${message} |\n`;
-                    } else {
-                      comment += `| Error | ${error} |\n`;
-                    }
+                  failures.forEach(failure => {
+                    comment += `| ${failure.name} | ${failure.message.replace(/\|/g, '\\|')} |\n`;
                   });
+                  
+                  comment += '\n';
+                } else {
+                  comment += '#### ❌ Validation Errors\n\n';
+                  
+                  if (deployResult.message) {
+                    comment += '| Error | Description |\n';
+                    comment += '|------|-------------|\n';
+                    
+                    const errorMessage = deployResult.message.split('Due To:\n')[1]?.split('\n\n')[0] || deployResult.message;
+                    const errors = errorMessage.split('\n').filter(line => line.trim());
+                    
+                    errors.forEach(error => {
+                      if (error.includes(' - ')) {
+                        const [component, ...messageParts] = error.split(' - ');
+                        const message = messageParts.join(' - ');
+                        comment += `| ${component} | ${message} |\n`;
+                      } else {
+                        comment += `| Error | ${error} |\n`;
+                      }
+                    });
+                  }
+                }
+
+                // Add code coverage warnings if present
+                if (result?.details?.runTestResult?.codeCoverageWarnings) {
+                  comment += '\n#### 👀 Code Coverage Warnings 👀\n\n';
+                  comment += '| Class | Code Coverage |\n';
+                  comment += '|-------|---------------|\n';
+                  
+                  const warnings = Array.isArray(result.details.runTestResult.codeCoverageWarnings)
+                    ? result.details.runTestResult.codeCoverageWarnings
+                    : [result.details.runTestResult.codeCoverageWarnings];
+                  
+                  warnings.forEach(warning => {
+                    comment += `| ${warning.name || warning.id} | ${warning.message.replace(/\|/g, '\\|')} |\n`;
+                  });
+                  
+                  comment += '\n';
                 }
               } else {
                 comment += '#### ✅ Validation Succeeded\n\n';
