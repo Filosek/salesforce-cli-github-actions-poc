@@ -481,11 +481,14 @@ jobs:
                   }
 
                   if (componentFailures.length > 0) {
-                    comment += '| Component | Type | Problem |\n';
-                    comment += '|-----------|--------|--------|\n';
-                    
+                    comment += '| Component | Type | Line | Column | Problem |\n';
+                    comment += '|-----------|--------|--------|--------|--------|\n';
+
+                    const line = failure.lineNumber ? failure.lineNumber : ' ';
+                    const column = failure.columnNumber ? failure.columnNumber : ' ';
+
                     componentFailures.forEach(failure => {
-                      comment += `| ${failure.fullName} | ${failure.componentType} | ${failure.problem} |\n`;
+                      comment += `| ${failure.fullName} | ${failure.componentType} | ${line} | ${column} | ${failure.problem} |\n`;
                     });
                   }
                 }
