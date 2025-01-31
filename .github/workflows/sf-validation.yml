@@ -244,7 +244,7 @@ jobs:
           
           node -e '
             const fs = require("fs");
-            const xml2js = require("xml2js");
+            const convert = require("xml-js");
             
             try {
               const packageXml = fs.readFileSync("package/package.xml", "utf8");
@@ -254,50 +254,49 @@ jobs:
               
               console.log("DEBUG - Test Map content:", JSON.stringify(testMap, null, 2));
               
-              xml2js.parseString(packageXml, (err, result) => {
-                if (err) {
+              const convertionResult = convert.xml2js(packageXml, {compact: true});
+              if (convertionResult.error) {
                   console.error("Error parsing package.xml:", err);
                   process.exit(1);
-                }
-                
-                console.log("DEBUG - Parsed package.xml:", JSON.stringify(result, null, 2));
-                
-                const types = result.Package.types || [];
-                const apexClasses = types.find(t => t.name[0] === "ApexClass");
-                
-                if (!apexClasses || !apexClasses.members) {
-                  fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
-                  process.exit(0);
-                }
-                
-                const classNames = apexClasses.members;
-                console.log("DEBUG - Found classes:", classNames);
-                
-                const testClasses = new Set(
-                  classNames.filter(name => (name.includes("Test") || name.includes("Tests")) && !name.includes("TestData"))
-                );
-                console.log("DEBUG - Initial test classes from naming:", Array.from(testClasses));
-                
-                classNames.forEach(className => {
-                  console.log(`DEBUG - Checking test map for class: ${className}`);
-                  if (testMap[className]) {
-                    console.log(`DEBUG - Found mapped tests for ${className}:`, testMap[className]);
-                    testMap[className].forEach(testClass => testClasses.add(testClass));
-                  }
-                });
-                
-                const testClassList = Array.from(testClasses);
-                console.log("DEBUG - Final test classes:", testClassList);
-                
-                if (testClassList.length > 0) {
-                  const output = `test-classes=${testClassList.join(" ")}`;
-                  console.log("DEBUG - Writing output:", output);
-                  fs.appendFileSync(process.env.GITHUB_OUTPUT, output + "\n");
-                } else {
-                  console.log("DEBUG - No test classes found, writing empty output");
-                  fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
+              }
+              
+              console.log("DEBUG - Parsed package.xml:", JSON.stringify(convertionResult, null, 2));
+              
+              const types = result.Package.types || [];
+              const apexClasses = types.find(t => t.name[0] === "ApexClass");
+              
+              if (!apexClasses || !apexClasses.members) {
+                fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
+                process.exit(0);
+              }
+              
+              const classNames = apexClasses.members;
+              console.log("DEBUG - Found classes:", classNames);
+              
+              const testClasses = new Set(
+                classNames.filter(name => (name.includes("Test") || name.includes("Tests")) && !name.includes("TestData"))
+              );
+              console.log("DEBUG - Initial test classes from naming:", Array.from(testClasses));
+              
+              classNames.forEach(className => {
+                console.log(`DEBUG - Checking test map for class: ${className}`);
+                if (testMap[className]) {
+                  console.log(`DEBUG - Found mapped tests for ${className}:`, testMap[className]);
+                  testMap[className].forEach(testClass => testClasses.add(testClass));
                 }
               });
+              
+              const testClassList = Array.from(testClasses);
+              console.log("DEBUG - Final test classes:", testClassList);
+              
+              if (testClassList.length > 0) {
+                const output = `test-classes=${testClassList.join(" ")}`;
+                console.log("DEBUG - Writing output:", output);
+                fs.appendFileSync(process.env.GITHUB_OUTPUT, output + "\n");
+              } else {
+                console.log("DEBUG - No test classes found, writing empty output");
+                fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
+              }
             } catch (error) {
               console.error("Error in test class generation:", error);
               process.exit(1);
