@@ -357,17 +357,13 @@ jobs:
               
               if (pmdOutput && pmdOutput !== 'No Apex files to analyze' && pmdOutput !== 'No PMD issues found') {
                 const lines = pmdOutput.split('\n');
-                console.log("Lines found:", lines.length);
-                
-                // Skip header rows (first two lines)
+
                 lines.slice(2).forEach(line => {
                   const parts = line.split('|').map(p => p.trim());
-                  console.log("Processing line:", line);
-                  console.log("Parts:", parts);
                   
                   if (parts.length >= 5) {
-                    if (parts[2] === 'Critical') pmdCritical++;
-                    if (parts[2] === 'Warning') pmdWarnings++;
+                    if (parts[3] === 'Critical') pmdCritical++;
+                    if (parts[3] === 'Warning') pmdWarnings++;
                   }
                 });
               }
