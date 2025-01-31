@@ -135,17 +135,18 @@ jobs:
           echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
           CHANGED_APEX_FILES=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep -E ".*\.(cls|trigger|page)$" | grep -v "meta\.xml$" | tr '\n' ' ' || true)
           echo "Apex files to check: [$CHANGED_APEX_FILES]"
-          
+          echo "=== End PMD Debug ==="
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
-            echo "Running hardcoded PMD command for testing"
+            echo "Running PMD on: $CHANGED_APEX_FILES"
             ./pmd-bin/bin/pmd check \
               -R pmdRuleset.xml \
               -f json \
               --force-language apex \
-              -d force-app/main/default/classes/AccountHelper.cls force-app/main/default/classes/AccountHelperTest.cls \
+              -d "$CHANGED_APEX_FILES" \
               2>&1 | node -e '
                 const input = require("fs").readFileSync(0, "utf-8");
                 try {
+                  console.log("Input:", input);
                   const jsonStart = input.indexOf("{");
                   const jsonPart = input.slice(jsonStart);
                   
