@@ -237,42 +237,49 @@ jobs:
             const fs = require("fs");
             const xml2js = require("xml2js");
             
-            const packageXml = fs.readFileSync("package/package.xml", "utf8");
-            const testMap = JSON.parse(fs.readFileSync("cicd/unitTestMap.json", "utf8"));
-            
-            xml2js.parseString(packageXml, (err, result) => {
-              if (err) {
-                console.error("Error parsing package.xml:", err);
-                process.exit(1);
-              }
+            try {
+              const packageXml = fs.readFileSync("package/package.xml", "utf8");
               
-              const types = result.Package.types || [];
-              const apexClasses = types.find(t => t.name[0] === "ApexClass");
+              const testMap = JSON.parse(fs.readFileSync("cicd/unitTestMap.json", "utf8"));
               
-              if (!apexClasses || !apexClasses.members) {
-                fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
-                process.exit(0);
-              }
-              
-              const classNames = apexClasses.members.map(m => m[0]);
-              
-              const testClasses = new Set(
-                classNames.filter(name => name.includes("Test") || name.includes("Tests"))
-              );
-              
-              classNames.forEach(className => {
-                if (testMap[className]) {
-                  testMap[className].forEach(testClass => testClasses.add(testClass));
+              xml2js.parseString(packageXml, (err, result) => {
+                if (err) {
+                  console.error("Error parsing package.xml:", err);
+                  process.exit(1);
+                }
+                
+                const types = result.Package.types || [];
+                const apexClasses = types.find(t => t.name[0] === "ApexClass");
+                
+                if (!apexClasses || !apexClasses.members) {
+                  fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
+                  process.exit(0);
+                }
+                
+                const classNames = apexClasses.members.map(m => m[0]);
+                
+                const testClasses = new Set(
+                  classNames.filter(name => (name.includes("Test") || name.includes("Tests")) && !name.includes("TestData"))
+                );
+                
+                classNames.forEach(className => {
+                  if (testMap[className]) {
+                    testMap[className].forEach(testClass => testClasses.add(testClass));
+                  }
+                });
+                
+                const testClassList = Array.from(testClasses);
+                
+                if (testClassList.length > 0) {
+                  fs.appendFileSync(process.env.GITHUB_OUTPUT, `test-classes=${testClassList.join(" ")}\n`);
+                } else {
+                  fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
                 }
               });
-              
-              const testClassList = Array.from(testClasses);
-              if (testClassList.length > 0) {
-                fs.appendFileSync(process.env.GITHUB_OUTPUT, `test-classes=${testClassList.join(" ")}\n`);
-              } else {
-                fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
-              }
-            });
+            } catch (error) {
+              console.error("Error in test class generation:", error);
+              process.exit(1);
+            }
           '
 
       - name: Deploy to validation org
@@ -283,7 +290,8 @@ jobs:
           echo "Starting deployment validation..."
           
           # Build deploy command
-          DEPLOY_CMD="npx sf project deploy validate \
+          DEPLOY_CMD="npx sf project deploy start \
+            --dry-run \
             --manifest package/package.xml \
             --pre-destructive-changes destructiveChanges/destructiveChangesPre.xml \
             --post-destructive-changes destructiveChanges/destructiveChangesPost.xml \
@@ -318,15 +326,6 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            
-            // Debug PMD report reading
-            console.log("Reading PMD report...");
-            try {
-              const pmdReport = fs.readFileSync('pmd_report.txt', 'utf8');
-              console.log("PMD Report content:", pmdReport);
-            } catch (e) {
-              console.error("Error reading PMD report:", e);
-            }
             
             let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
             
@@ -367,7 +366,6 @@ jobs:
                   }
                 });
               }
-              console.log(`Found issues - Critical: ${pmdCritical}, Warnings: ${pmdWarnings}`);
             } catch (e) {
               console.error('Error parsing PMD output:', e);
             }
@@ -375,13 +373,17 @@ jobs:
             comment += '### 📊 Summary\n\n';
             comment += '| Check | Status |\n';
             comment += '|-------|--------|\n';
+
             const hasEslintIssues = eslintCritical + eslintWarnings > 0;
             const hasPmdIssues = pmdCritical + pmdWarnings > 0;
+
             comment += `| ESLint | ${hasEslintIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
             comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
 
             const hasDeployIssues = '${{ steps.deploy.outputs.has_issues }}' === 'true';
+
             let deployResult;
+
             try {
               const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
               deployResult = JSON.parse(deployContent);
@@ -398,15 +400,18 @@ jobs:
               comment += '### 📊 Issues Severity\n\n';
               comment += '```mermaid\npie\n';
               comment += '    title Issues Distribution\n';
-              if (totalCritical > 0) {
+
+              if (totalCritical >= 0) {
                 comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
               }
-              if (totalWarnings > 0) {
+
+              if (totalWarnings >= 0) {
                 comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
               }
-              comment += '    %%{init: {"pie": {"colorScheme": ["#ff0000", "#ffa500"]}} }%%\n';
+
+              comment += '    %%{init: {"theme": "base", "themeVariables": {"pie1": "#c9832e", "pie2": "#63561e"}} }%%\n';
               comment += '```\n\n';
-              
+
               comment += '| Tool | Critical | Warnings | Total |\n';
               comment += '|------|----------|----------|--------|\n';
               comment += `| ESLint | ${eslintCritical} | ${eslintWarnings} | ${eslintCritical + eslintWarnings} |\n`;
@@ -415,47 +420,120 @@ jobs:
 
             comment += '## 📝 Detailed Results\n\n';
             
+            comment += '### 🔍 ESLint Issues\n\n';
             if (hasEslintIssues && eslintOutput) {
-              comment += '### 🔍 ESLint Issues\n\n';
               comment += eslintOutput + '\n\n';
+            } else {
+              comment += 'No ESLint issues found 🤩\n\n';
             }
             
+            comment += '### 🔍 PMD Issues\n\n';
             if (hasPmdIssues && pmdOutput) {
-              comment += '### 🔍 PMD Issues\n\n';
               comment += pmdOutput + '\n\n';
+            } else {
+              comment += 'No PMD issues found 😎\n\n';
             }
             
             if (deployResult) {
               comment += '### 🚀 Deployment Validation\n\n';
+              comment += `- **Deploy ID**: \`${deployResult.result?.id || deployResult.data?.deployId || 'N/A'}\`\n`;
+              comment += `- **Status**: ${hasDeployIssues ? 'Failed' : 'Success'}\n`;
+
+              if (hasDeployIssues && deployResult.name) {
+                comment += `- **Error Type**: ${deployResult.name}\n`;
+              }
+
+              const result = deployResult.result || deployResult.data;
               
               if (hasDeployIssues) {
-                comment += '#### ❌ Validation Errors\n\n';
-                
-                if (deployResult.message) {
-                  comment += '| Error | Description |\n';
-                  comment += '|------|-------------|\n';
+                if (result?.details?.runTestResult?.failures) {
+                  comment += '#### ☠️ Unit Tests Failure 🔥\n\n';
+                  comment += '| Class | Method | Problem |\n';
+                  comment += '|-------|---------|--------|\n';
                   
-                  const errorMessage = deployResult.message.split('Due To:\n')[1]?.split('\n\n')[0] || deployResult.message;
-                  const errors = errorMessage.split('\n').filter(line => line.trim());
+                  const failures = Array.isArray(result.details.runTestResult.failures) 
+                    ? result.details.runTestResult.failures 
+                    : [result.details.runTestResult.failures];
                   
-                  errors.forEach(error => {
-                    if (error.includes(' - ')) {
-                      const [component, ...messageParts] = error.split(' - ');
-                      const message = messageParts.join(' - ');
-                      comment += `| ${component} | ${message} |\n`;
-                    } else {
-                      comment += `| Error | ${error} |\n`;
-                    }
+                  failures.forEach(failure => {
+                    comment += `| ${failure.name} | ${failure.methodName} | ${failure.message.replace(/\|/g, '\\|')} |\n`;
                   });
+                  
+                  comment += '\n';
+                } else {
+                  comment += '#### ❌ Validation Errors\n\n';
+                  
+                  if (deployResult.message) {
+                    comment += '| Error | Description |\n';
+                    comment += '|------|-------------|\n';
+                    
+                    const errorMessage = deployResult.message.split('Due To:\n')[1]?.split('\n\n')[0] || deployResult.message;
+                    const errors = errorMessage.split('\n').filter(line => line.trim());
+                    
+                    errors.forEach(error => {
+                      if (error.includes(' - ')) {
+                        const [component, ...messageParts] = error.split(' - ');
+                        const message = messageParts.join(' - ');
+                        comment += `| ${component} | ${message} |\n`;
+                      } else {
+                        comment += `| Error | ${error} |\n`;
+                      }
+                    });
+                  }
+                }
+
+                // Add code coverage warnings if present
+                if (result?.details?.runTestResult?.codeCoverageWarnings) {
+                  const warnings = Array.isArray(result.details.runTestResult.codeCoverageWarnings)
+                    ? result.details.runTestResult.codeCoverageWarnings
+                    : [result.details.runTestResult.codeCoverageWarnings];
+                  
+                  // Only show the section if there are actual warnings
+                  if (warnings.length > 0) {
+                    comment += '\n#### 👀 Code Coverage Warnings 👀\n\n';
+                    comment += '| Id | Warning |\n';
+                    comment += '|-------|--------|\n';
+                    
+                    warnings.forEach(warning => {
+                      comment += `| ${warning.id} | ${warning.message.replace(/\|/g, '\\|')} |\n`;
+                    });
+                    
+                    comment += '\n';
+                  }
                 }
               } else {
                 comment += '#### ✅ Validation Succeeded\n\n';
               }
+
+              comment += '#### 🧪 Executed Tests\n\n';
+              comment += '| Executed Test |\n';
+              comment += '|---------------|\n';
               
-              comment += `- **Deploy ID**: \`${deployResult.result?.id || deployResult.data?.deployId || 'N/A'}\`\n`;
-              comment += `- **Status**: ${hasDeployIssues ? 'Failed' : 'Success'}\n`;
-              if (hasDeployIssues && deployResult.name) {
-                comment += `- **Error Type**: ${deployResult.name}\n`;
+              const testClasses = '${{ steps.test-classes.outputs.test-classes }}'.trim();
+              
+              if (testClasses) {
+                testClasses.split(' ').forEach(testClass => {
+                  comment += `| ${testClass} |\n`;
+                });
+              } else {
+                comment += '| No tests executed during the validation |\n';
+              }
+              comment += '\n';
+
+              if (result?.details?.runTestResult?.codeCoverage) {
+                const codeCoverages = Array.isArray(result.details.runTestResult.codeCoverage)
+                  ? result.details.runTestResult.codeCoverage
+                  : [result.details.runTestResult.codeCoverage];
+
+                if (codeCoverages.length > 0) {
+                  comment += '#### 🚔 Code Coverage 🚓\n\n';
+                  comment += '| Class | Coverage | Coverage % |\n';
+                  comment += '|-------|----------|------------|\n';
+                  codeCoverages.forEach(coverage => {
+                    const coveragePercentage = (coverage.numLocationsNotCovered / coverage.numLocations * 100).toFixed(2);
+                    comment += `| ${coverage.name} | ${coverage.numLocationsNotCovered}/${coverage.numLocations} | ${coveragePercentage}% |\n`;
+                  });
+                }
               }
               
               comment += '\n';
@@ -481,6 +559,7 @@ jobs:
       - name: Check validation status
         if: always() && steps.changed-files.outputs.any_changed == 'true'
         run: |
+          echo "DEBUG - Checking has_issues value: ${{ steps.deploy.outputs.has_issues }}"
           if [ "${{ steps.deploy.outputs.has_issues }}" = "true" ]; then
             echo "Deployment validation failed!"
             exit 1
