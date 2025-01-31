@@ -320,21 +320,6 @@ jobs:
           script: |
             const fs = require('fs');
             
-            let deployResult;
-            try {
-              console.log("DEBUG - Reading deploy_report.json");
-              const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
-              console.log("DEBUG - Deploy report content:", deployContent);
-              
-              deployResult = JSON.parse(deployContent);
-              console.log("DEBUG - Parsed deploy result:", JSON.stringify(deployResult, null, 2));
-              
-              const result = deployResult.result || deployResult.data;
-              console.log("DEBUG - Test failures:", JSON.stringify(result?.details?.runTestResult?.failures, null, 2));
-            } catch (e) {
-              console.error("Error reading/parsing deploy report:", e);
-            }
-            
             let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
             
             let eslintCritical = 0;
@@ -381,13 +366,17 @@ jobs:
             comment += '### 📊 Summary\n\n';
             comment += '| Check | Status |\n';
             comment += '|-------|--------|\n';
+
             const hasEslintIssues = eslintCritical + eslintWarnings > 0;
             const hasPmdIssues = pmdCritical + pmdWarnings > 0;
+
             comment += `| ESLint | ${hasEslintIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
             comment += `| PMD | ${hasPmdIssues ? '⚠️ Issues found' : '✨ Clean'} |\n`;
 
             const hasDeployIssues = '${{ steps.deploy.outputs.has_issues }}' === 'true';
-            //let deployResult;
+
+            let deployResult;
+
             try {
               const deployContent = fs.readFileSync('deploy_report.json', 'utf8');
               deployResult = JSON.parse(deployContent);
@@ -404,15 +393,18 @@ jobs:
               comment += '### 📊 Issues Severity\n\n';
               comment += '```mermaid\npie\n';
               comment += '    title Issues Distribution\n';
+
               if (totalCritical > 0) {
                 comment += `    "Critical (${totalCritical})" : ${totalCritical}\n`;
               }
+
               if (totalWarnings > 0) {
                 comment += `    "Warnings (${totalWarnings})" : ${totalWarnings}\n`;
               }
+
               comment += '    %%{init: {"pie": {"colorScheme": ["#ff0000", "#ffa500"]}} }%%\n';
               comment += '```\n\n';
-              
+
               comment += '| Tool | Critical | Warnings | Total |\n';
               comment += '|------|----------|----------|--------|\n';
               comment += `| ESLint | ${eslintCritical} | ${eslintWarnings} | ${eslintCritical + eslintWarnings} |\n`;
@@ -442,7 +434,7 @@ jobs:
                   console.log("DEBUG - Found test failures");
                   comment += '#### ☠️ Unit Tests Failure 🔥\n\n';
                   comment += '| Class | Problem |\n';
-                  comment += '|-------|---------||\n';
+                  comment += '|-------|---------|\n';
                   
                   const failures = Array.isArray(result.details.runTestResult.failures) 
                     ? result.details.runTestResult.failures 
@@ -478,19 +470,22 @@ jobs:
 
                 // Add code coverage warnings if present
                 if (result?.details?.runTestResult?.codeCoverageWarnings) {
-                  comment += '\n#### 👀 Code Coverage Warnings 👀\n\n';
-                  comment += '| Class | Code Coverage |\n';
-                  comment += '|-------|---------------|\n';
-                  
                   const warnings = Array.isArray(result.details.runTestResult.codeCoverageWarnings)
                     ? result.details.runTestResult.codeCoverageWarnings
                     : [result.details.runTestResult.codeCoverageWarnings];
                   
-                  warnings.forEach(warning => {
-                    comment += `| ${warning.name || warning.id} | ${warning.message.replace(/\|/g, '\\|')} |\n`;
-                  });
-                  
-                  comment += '\n';
+                  // Only show the section if there are actual warnings
+                  if (warnings.length > 0) {
+                    comment += '\n#### 👀 Code Coverage Warnings 👀\n\n';
+                    comment += '| Class | Code Coverage |\n';
+                    comment += '|-------|---------------|\n';
+                    
+                    warnings.forEach(warning => {
+                      comment += `| ${warning.name || warning.id} | ${warning.message.replace(/\|/g, '\\|')} |\n`;
+                    });
+                    
+                    comment += '\n';
+                  }
                 }
               } else {
                 comment += '#### ✅ Validation Succeeded\n\n';
