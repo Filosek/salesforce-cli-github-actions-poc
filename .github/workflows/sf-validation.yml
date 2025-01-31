@@ -284,7 +284,7 @@ jobs:
           
           # Build deploy command
           DEPLOY_CMD="npx sf project deploy start \
-            --check-only \
+            --dry-run \
             --manifest package/package.xml \
             --pre-destructive-changes destructiveChanges/destructiveChangesPre.xml \
             --post-destructive-changes destructiveChanges/destructiveChangesPost.xml \
