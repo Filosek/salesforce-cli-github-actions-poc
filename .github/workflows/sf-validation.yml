@@ -427,7 +427,7 @@ jobs:
               comment += '### 🚀 Deployment Validation\n\n';
               comment += `- **Deploy ID**: \`${deployResult.result?.id || deployResult.data?.deployId || 'N/A'}\`\n`;
               comment += `- **Status**: ${hasDeployIssues ? 'Failed' : 'Success'}\n`;
-              
+
               if (hasDeployIssues && deployResult.name) {
                 comment += `- **Error Type**: ${deployResult.name}\n`;
               }
@@ -439,15 +439,15 @@ jobs:
                 if (result?.details?.runTestResult?.failures) {
                   console.log("DEBUG - Found test failures");
                   comment += '#### ☠️ Unit Tests Failure 🔥\n\n';
-                  comment += '| Class | Problem |\n';
-                  comment += '|-------|---------|\n';
+                  comment += '| Class | Method | Problem |\n';
+                  comment += '|-------|---------|--------|\n';
                   
                   const failures = Array.isArray(result.details.runTestResult.failures) 
                     ? result.details.runTestResult.failures 
                     : [result.details.runTestResult.failures];
                   
                   failures.forEach(failure => {
-                    comment += `| ${failure.name} | ${failure.message.replace(/\|/g, '\\|')} |\n`;
+                    comment += `| ${failure.name} | ${failure.methodName} | ${failure.message.replace(/\|/g, '\\|')} |\n`;
                   });
                   
                   comment += '\n';
@@ -483,14 +483,30 @@ jobs:
                   // Only show the section if there are actual warnings
                   if (warnings.length > 0) {
                     comment += '\n#### 👀 Code Coverage Warnings 👀\n\n';
-                    comment += '| Class | Code Coverage |\n';
-                    comment += '|-------|---------------|\n';
+                    comment += '| Id | Warning |\n';
+                    comment += '|-------|--------|\n';
                     
                     warnings.forEach(warning => {
-                      comment += `| ${warning.name || warning.id} | ${warning.message.replace(/\|/g, '\\|')} |\n`;
+                      comment += `| ${warning.id} | ${warning.message.replace(/\|/g, '\\|')} |\n`;
                     });
                     
                     comment += '\n';
+                  }
+                }
+
+                if (result?.details?.runTestResult?.codeCoverage) {
+                  const codeCoverages = Array.isArray(result.details.runTestResult.codeCoverage)
+                    ? result.details.runTestResult.codeCoverage
+                    : [result.details.runTestResult.codeCoverage];
+
+                  if (codeCoverages.length > 0) {
+                    comment += '#### 🚔Code Coverage🚓\n\n';
+                    comment += '| Class | Coverage | Coverage % |\n';
+                    comment += '|-------|----------|------------|\n';
+                    codeCoverages.forEach(coverage => {
+                      const coveragePercentage = (coverage.numLocationsNotCovered / coverage.numLocations * 100).toFixed(2);
+                      comment += `| ${coverage.name} | ${coverage.numLocationsNotCovered}/${coverage.numLocations} | ${coveragePercentage}% |\n`;
+                    });
                   }
                 }
               } else {
