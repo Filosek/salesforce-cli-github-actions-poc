@@ -3,6 +3,6 @@ public with sharing class AccountHelper {
         System.debug('Fixed Endless Loop!');
         Account acc = new Account();
         acc.Name = 'Test Account';
-        acc.Active__c = true;
+        acc.BillingCountry = 'PL';
     }
 }
