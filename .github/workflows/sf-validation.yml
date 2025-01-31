@@ -484,10 +484,10 @@ jobs:
                     comment += '| Component | Type | Line | Column | Problem |\n';
                     comment += '|-----------|--------|--------|--------|--------|\n';
 
-                    const line = failure.lineNumber ? failure.lineNumber : ' ';
-                    const column = failure.columnNumber ? failure.columnNumber : ' ';
-
                     componentFailures.forEach(failure => {
+                      const line = failure.lineNumber ? failure.lineNumber : ' ';
+                      const column = failure.columnNumber ? failure.columnNumber : ' ';
+                      
                       comment += `| ${failure.fullName} | ${failure.componentType} | ${line} | ${column} | ${failure.problem} |\n`;
                     });
                   }
