@@ -319,6 +319,15 @@ jobs:
           script: |
             const fs = require('fs');
             
+            // Debug PMD report reading
+            console.log("Reading PMD report...");
+            try {
+              const pmdReport = fs.readFileSync('pmd_report.txt', 'utf8');
+              console.log("PMD Report content:", pmdReport);
+            } catch (e) {
+              console.error("Error reading PMD report:", e);
+            }
+            
             let comment = '<h2>🔍 Salesforce Validation Results</h2>\n\n';
             
             let eslintCritical = 0;
