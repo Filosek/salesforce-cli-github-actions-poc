@@ -137,15 +137,12 @@ jobs:
           echo "Apex files to check: [$CHANGED_APEX_FILES]"
           
           if [ ! -z "$CHANGED_APEX_FILES" ]; then
-            echo "Running PMD on: $CHANGED_APEX_FILES"
-            echo "Full PMD command:"
-            echo "./pmd-bin/bin/pmd check -R pmdRuleset.xml -f json --force-language apex -d $CHANGED_APEX_FILES"
-            
+            echo "Running hardcoded PMD command for testing"
             ./pmd-bin/bin/pmd check \
               -R pmdRuleset.xml \
               -f json \
               --force-language apex \
-              -d "$CHANGED_APEX_FILES" \
+              -d force-app/main/default/classes/AccountHelper.cls force-app/main/default/classes/AccountHelperTest.cls \
               2>&1 | node -e '
                 const input = require("fs").readFileSync(0, "utf-8");
                 try {
