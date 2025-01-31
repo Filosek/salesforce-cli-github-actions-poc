@@ -237,42 +237,49 @@ jobs:
             const fs = require("fs");
             const xml2js = require("xml2js");
             
-            const packageXml = fs.readFileSync("package/package.xml", "utf8");
-            const testMap = JSON.parse(fs.readFileSync("cicd/unitTestMap.json", "utf8"));
-            
-            xml2js.parseString(packageXml, (err, result) => {
-              if (err) {
-                console.error("Error parsing package.xml:", err);
-                process.exit(1);
-              }
+            try {
+              const packageXml = fs.readFileSync("package/package.xml", "utf8");
               
-              const types = result.Package.types || [];
-              const apexClasses = types.find(t => t.name[0] === "ApexClass");
+              const testMap = JSON.parse(fs.readFileSync("cicd/unitTestMap.json", "utf8"));
               
-              if (!apexClasses || !apexClasses.members) {
-                fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
-                process.exit(0);
-              }
-              
-              const classNames = apexClasses.members.map(m => m[0]);
-              
-              const testClasses = new Set(
-                classNames.filter(name => name.includes("Test") || name.includes("Tests"))
-              );
-              
-              classNames.forEach(className => {
-                if (testMap[className]) {
-                  testMap[className].forEach(testClass => testClasses.add(testClass));
+              xml2js.parseString(packageXml, (err, result) => {
+                if (err) {
+                  console.error("Error parsing package.xml:", err);
+                  process.exit(1);
+                }
+                
+                const types = result.Package.types || [];
+                const apexClasses = types.find(t => t.name[0] === "ApexClass");
+                
+                if (!apexClasses || !apexClasses.members) {
+                  fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
+                  process.exit(0);
+                }
+                
+                const classNames = apexClasses.members.map(m => m[0]);
+                
+                const testClasses = new Set(
+                  classNames.filter(name => (name.includes("Test") || name.includes("Tests")) && !name.includes("TestData"))
+                );
+                
+                classNames.forEach(className => {
+                  if (testMap[className]) {
+                    testMap[className].forEach(testClass => testClasses.add(testClass));
+                  }
+                });
+                
+                const testClassList = Array.from(testClasses);
+                
+                if (testClassList.length > 0) {
+                  fs.appendFileSync(process.env.GITHUB_OUTPUT, `test-classes=${testClassList.join(" ")}\n`);
+                } else {
+                  fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
                 }
               });
-              
-              const testClassList = Array.from(testClasses);
-              if (testClassList.length > 0) {
-                fs.appendFileSync(process.env.GITHUB_OUTPUT, `test-classes=${testClassList.join(" ")}\n`);
-              } else {
-                fs.appendFileSync(process.env.GITHUB_OUTPUT, "test-classes=\n");
-              }
-            });
+            } catch (error) {
+              console.error("Error in test class generation:", error);
+              process.exit(1);
+            }
           '
 
       - name: Deploy to validation org
@@ -413,14 +420,18 @@ jobs:
 
             comment += '## 📝 Detailed Results\n\n';
             
+            comment += '### 🔍 ESLint Issues\n\n';
             if (hasEslintIssues && eslintOutput) {
-              comment += '### 🔍 ESLint Issues\n\n';
               comment += eslintOutput + '\n\n';
+            } else {
+              comment += 'No ESLint issues found 🤩\n\n';
             }
             
+            comment += '### 🔍 PMD Issues\n\n';
             if (hasPmdIssues && pmdOutput) {
-              comment += '### 🔍 PMD Issues\n\n';
               comment += pmdOutput + '\n\n';
+            } else {
+              comment += 'No PMD issues found 😎\n\n';
             }
             
             if (deployResult) {
@@ -499,6 +510,7 @@ jobs:
               comment += '|---------------|\n';
               
               const testClasses = '${{ steps.test-classes.outputs.test-classes }}'.trim();
+              
               if (testClasses) {
                 testClasses.split(' ').forEach(testClass => {
                   comment += `| ${testClass} |\n`;
